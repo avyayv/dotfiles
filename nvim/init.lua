@@ -1,6 +1,12 @@
 -- Enable line numbers
 vim.wo.number = true
 
+-- Default indentation (2 spaces)
+vim.o.expandtab = true
+vim.o.shiftwidth = 2
+vim.o.tabstop = 2
+vim.o.softtabstop = 2
+
 -- Set up color scheme
 vim.o.termguicolors = true
 vim.o.background = "dark"
@@ -45,13 +51,13 @@ require("lazy").setup({
             },
           },
         },
-    	git = {
-    	  ignore = false,
-    	},
-    	filters = {
-    	  dotfiles = false,
-    	  git_ignored = false,
-    	},
+        git = {
+          ignore = false,
+        },
+        filters = {
+          dotfiles = false,
+          git_ignored = false,
+        },
       })
 
       -- Key mapping to toggle nvim-tree
@@ -111,85 +117,8 @@ require("lazy").setup({
     end,
   },
 
-  -- LSP Configuration
-  {
-    "neovim/nvim-lspconfig",
-    dependencies = {
-      "L3MON4D3/LuaSnip",
-    },
-    config = function()
-      local lspconfig = require("lspconfig")
-      local luasnip = require("luasnip")
-
-      lspconfig.pyright.setup{
-        settings = {
-          python = {
-            analysis = {
-              autoSearchPaths = true,
-              diagnosticMode = "workspace",
-              useLibraryCodeForTypes = true
-            }
-          }
-        }
-      }
-
-      lspconfig.tsserver.setup{
-        filetypes = { "typescript", "typescriptreact", "typescript.tsx" },
-        cmd = { "typescript-language-server", "--stdio" },
-        root_dir = lspconfig.util.root_pattern("package.json", "tsconfig.json", "jsconfig.json", ".git"),
-      }
-
-      lspconfig.rust_analyzer.setup{
-        cmd = {"rust-analyzer"},
-        filetypes = {"rust"},
-        root_dir = lspconfig.util.root_pattern("Cargo.toml", "rust-project.json"),
-        settings = {
-          ["rust-analyzer"] = {
-            assist = {
-              importGranularity = "module",
-              importPrefix = "self",
-            },
-            cargo = {
-              loadOutDirsFromCheck = true
-            },
-            procMacro = {
-              enable = true
-            },
-          }
-        }
-      }
-
-      lspconfig.gopls.setup{
-        cmd = {"gopls", "serve"},
-        filetypes = {"go", "gomod"},
-        root_dir = lspconfig.util.root_pattern("go.work", "go.mod", ".git"),
-        settings = {
-          gopls = {
-            analyses = {
-              unusedparams = true,
-            },
-            staticcheck = true,
-          },
-        },
-      }
-
-      -- Key mappings for LSP functionality
-      vim.api.nvim_create_autocmd('LspAttach', {
-        group = vim.api.nvim_create_augroup('UserLspConfig', {}),
-        callback = function(ev)
-          local opts = { buffer = ev.buf }
-          vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
-          vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-          vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
-          vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
-          vim.keymap.set('n', 'gr', require('telescope.builtin').lsp_references, opts)
-          vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
-          vim.keymap.set('n', '<leader>D', vim.lsp.buf.type_definition, opts)
-          vim.keymap.set('n', '<leader>s', require('telescope.builtin').lsp_document_symbols, opts)
-        end,
-      })
-    end,
-  },
+  -- LSP dependencies
+  { "L3MON4D3/LuaSnip" },
 
   -- Telescope for fuzzy finding
   {
@@ -207,6 +136,87 @@ require("lazy").setup({
     end
   },
 
+})
+
+-- LSP Configuration (native vim.lsp.config for Nvim 0.11+)
+vim.lsp.config('pyright', {
+  settings = {
+    python = {
+      analysis = {
+        autoSearchPaths = true,
+        diagnosticMode = "workspace",
+        useLibraryCodeForTypes = true,
+      },
+    },
+  },
+})
+
+vim.lsp.config('ts_ls', {
+  filetypes = { "typescript", "typescriptreact", "typescript.tsx" },
+  cmd = { "typescript-language-server", "--stdio" },
+  root_markers = { "package.json", "tsconfig.json", "jsconfig.json", ".git" },
+})
+
+vim.lsp.config('rust_analyzer', {
+  cmd = { "rust-analyzer" },
+  filetypes = { "rust" },
+  root_markers = { "Cargo.toml", "rust-project.json" },
+  settings = {
+    ["rust-analyzer"] = {
+      assist = {
+        importGranularity = "module",
+        importPrefix = "self",
+      },
+      cargo = {
+        loadOutDirsFromCheck = true,
+      },
+      procMacro = {
+        enable = true,
+      },
+    },
+  },
+})
+
+vim.lsp.config('jsonls', {
+  cmd = { "vscode-json-language-server", "--stdio" },
+  filetypes = { "json", "jsonc" },
+  settings = {
+    json = {
+      validate = { enable = true },
+    },
+  },
+})
+
+vim.lsp.config('gopls', {
+  cmd = { "gopls", "serve" },
+  filetypes = { "go", "gomod" },
+  root_markers = { "go.work", "go.mod", ".git" },
+  settings = {
+    gopls = {
+      analyses = {
+        unusedparams = true,
+      },
+      staticcheck = true,
+    },
+  },
+})
+
+vim.lsp.enable({ 'pyright', 'ts_ls', 'rust_analyzer', 'jsonls', 'gopls' })
+
+-- Key mappings for LSP functionality
+vim.api.nvim_create_autocmd('LspAttach', {
+  group = vim.api.nvim_create_augroup('UserLspConfig', {}),
+  callback = function(ev)
+    local opts = { buffer = ev.buf }
+    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+    vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
+    vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
+    vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+    vim.keymap.set('n', 'gr', require('telescope.builtin').lsp_references, opts)
+    vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
+    vim.keymap.set('n', '<leader>D', vim.lsp.buf.type_definition, opts)
+    vim.keymap.set('n', '<leader>s', require('telescope.builtin').lsp_document_symbols, opts)
+  end,
 })
 
 -- Set up filetype detection for Python
