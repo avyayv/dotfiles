@@ -1,8 +1,8 @@
 # Custom ZSH Functions
 
-# Helper: create a new worktree from current HEAD
+# Helper: create a new worktree from current HEAD or track remote branch
 function _gwt_create() {
-  echo -n "New branch name: "
+  echo -n "Branch name: "
   read new_branch
   if [ -z "$new_branch" ]; then
     echo "Cancelled"
@@ -12,11 +12,38 @@ function _gwt_create() {
   local wt_path="$HOME/.avyay-worktrees/$wt_name"
   local source_dir="$(git rev-parse --show-toplevel)"
   mkdir -p "$HOME/.avyay-worktrees"
-  git worktree add -b "$new_branch" "$wt_path" HEAD && \
-  for env_file in "$source_dir"/.env*(N); do
-    ln -s "$env_file" "$wt_path/$(basename "$env_file")" && echo "Symlinked $(basename "$env_file")"
-  done
-  cd "$wt_path"
+
+  # Fetch latest remote refs
+  git fetch --prune --quiet
+
+  # Check if branch exists locally
+  local local_branch="$(git for-each-ref --format='%(refname:short)' refs/heads/"$new_branch" 2>/dev/null)"
+  # Check if branch exists on remote
+  local remote_ref="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/"$new_branch" 2>/dev/null)"
+
+  local wt_created=0
+  if [ -n "$local_branch" ]; then
+    # Branch exists locally - use it
+    echo "Using existing local branch: $local_branch"
+    git worktree add "$wt_path" "$new_branch" && wt_created=1
+  elif [ -n "$remote_ref" ]; then
+    # Branch exists on remote - track it
+    echo "Tracking remote branch: $remote_ref"
+    git worktree add --track -b "$new_branch" "$wt_path" "$remote_ref" && wt_created=1
+  else
+    # Create new branch from HEAD
+    git worktree add -b "$new_branch" "$wt_path" HEAD && wt_created=1
+  fi
+
+  if [ "$wt_created" -eq 1 ]; then
+    while IFS= read -r env_file; do
+      local rel_path="${env_file#$source_dir/}"
+      local target_dir="$wt_path/$(dirname "$rel_path")"
+      mkdir -p "$target_dir"
+      ln -s "$env_file" "$wt_path/$rel_path" && echo "Symlinked $rel_path"
+    done < <(find "$source_dir" -name ".env*" -type f 2>/dev/null)
+    cd "$wt_path"
+  fi
 }
 
 # Delete current worktree and return to main repo
@@ -138,3 +165,31 @@ function tmuxh() {
   # Attach with iTerm2 integration
   tmux -CC attach -t "$session_name"
 }
+
+# Create tmux session with N tabs, each horizontally split into 2 columns
+function _tmux_tabs() {
+  local num_tabs="$1"
+  local session_name="${2:-main}"
+  local start_dir="${PWD}"
+
+  # Create session with first window (already split)
+  tmux new-session -d -s "$session_name" -c "$start_dir"
+  tmux split-window -h -t "$session_name" -c "$start_dir"
+
+  # Create remaining windows, each with a horizontal split
+  for i in $(seq 2 "$num_tabs"); do
+    tmux new-window -t "$session_name" -c "$start_dir"
+    tmux split-window -h -t "$session_name" -c "$start_dir"
+  done
+
+  # Select first window
+  tmux select-window -t "$session_name:1"
+
+  # Attach with iTerm2 integration
+  tmux -CC attach -t "$session_name"
+}
+
+# Generate tmux2 through tmux8
+for i in {2..8}; do
+  eval "function tmux${i}() { _tmux_tabs $i \"\$1\"; }"
+done
