@@ -120,6 +120,7 @@ function gwtb() {
 }
 
 # Switch to another worktree or create new (requires fzf)
+# Carries unstaged/staged changes to the target worktree and drops them from the source
 # Usage: gwts
 function gwts() {
   if ! command -v fzf &>/dev/null; then
@@ -145,9 +146,25 @@ $worktrees"
     return
   fi
 
+  # Stash changes before switching (stash is shared across worktrees)
+  local did_stash=0
+  if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    git stash push --include-untracked -m "gwts: carry to worktree" --quiet && did_stash=1
+    [ "$did_stash" -eq 1 ] && echo "Stashed changes from $(basename "$(git rev-parse --show-toplevel)")"
+  fi
+
   local wt_path="$(echo "$selected" | awk '{print $1}')"
   cd "$wt_path" || return 1
   echo "Switched to: $wt_path"
+
+  # Pop stashed changes into the target worktree
+  if [ "$did_stash" -eq 1 ]; then
+    if git stash pop --quiet 2>/dev/null; then
+      echo "Applied changes to $(basename "$wt_path")"
+    else
+      echo "Warning: conflicts applying changes — stash preserved (use 'git stash pop' to retry)"
+    fi
+  fi
 }
 
 # Create tmux session with iTerm2 integration (-CC) and 2x2 grid
@@ -166,20 +183,52 @@ function tmuxh() {
   tmux -CC attach -t "$session_name"
 }
 
-# Create tmux session with N tabs, each horizontally split into 2 columns
+# Create tmux session with N tabs, optionally split each tab into 2 columns
 function _tmux_tabs() {
   local num_tabs="$1"
-  local session_name="${2:-main}"
+  shift
+  local session_name="main"
   local start_dir="${PWD}"
+  local vertical_split=0
 
-  # Create session with first window (already split)
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --vertical|-v)
+        vertical_split=1
+        ;;
+      --help|-h)
+        echo "Usage: tmux${num_tabs} [session_name] [--vertical|-v]"
+        return 0
+        ;;
+      --*)
+        echo "Unknown option: $1"
+        echo "Usage: tmux${num_tabs} [session_name] [--vertical|-v]"
+        return 1
+        ;;
+      *)
+        if [ "$session_name" != "main" ]; then
+          echo "Unexpected argument: $1"
+          echo "Usage: tmux${num_tabs} [session_name] [--vertical|-v]"
+          return 1
+        fi
+        session_name="$1"
+        ;;
+    esac
+    shift
+  done
+
+  # Create session with first window
   tmux new-session -d -s "$session_name" -c "$start_dir"
-  tmux split-window -h -t "$session_name" -c "$start_dir"
+  if [ "$vertical_split" -eq 1 ]; then
+    tmux split-window -h -t "$session_name:1" -c "$start_dir"
+  fi
 
-  # Create remaining windows, each with a horizontal split
+  # Create remaining windows
   for i in $(seq 2 "$num_tabs"); do
     tmux new-window -t "$session_name" -c "$start_dir"
-    tmux split-window -h -t "$session_name" -c "$start_dir"
+    if [ "$vertical_split" -eq 1 ]; then
+      tmux split-window -h -t "$session_name:$i" -c "$start_dir"
+    fi
   done
 
   # Select first window
@@ -191,5 +240,5 @@ function _tmux_tabs() {
 
 # Generate tmux2 through tmux8
 for i in {2..8}; do
-  eval "function tmux${i}() { _tmux_tabs $i \"\$1\"; }"
+  eval "function tmux${i}() { _tmux_tabs $i \"\$@\"; }"
 done

@@ -23,6 +23,17 @@ tmuxh           # Creates session named "main"
 tmuxh myproject # Creates session named "myproject"
 ```
 
+### `tmux2` through `tmux8`
+
+Creates a tmux session with that many tabs, all starting in the current directory. Tabs are not split by default. Pass `--vertical` or `-v` to split each tab into two side-by-side panes.
+
+```bash
+tmux8
+tmux8 myproject
+tmux8 --vertical
+tmux8 myproject --vertical
+```
+
 ### `gwts`
 
 Switch between worktrees or create a new one (requires fzf). New worktrees are created from current HEAD with `.env*` files symlinked.
