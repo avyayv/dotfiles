@@ -229,6 +229,69 @@ $worktrees"
   fi
 }
 
+function _git_cleanup_main_merged_branches() {
+  local base_ref=""
+  local current_branch=""
+  local merged_branches=""
+  local response=""
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Not in a git repository"
+    return 1
+  fi
+
+  if git show-ref --verify --quiet refs/remotes/origin/main; then
+    base_ref="origin/main"
+  elif git show-ref --verify --quiet refs/heads/main; then
+    base_ref="main"
+  elif git show-ref --verify --quiet refs/remotes/origin/master; then
+    base_ref="origin/master"
+  elif git show-ref --verify --quiet refs/heads/master; then
+    base_ref="master"
+  else
+    echo "Could not find main or master"
+    return 1
+  fi
+
+  current_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+  merged_branches="$(
+    git for-each-ref --format='%(refname:short)' refs/heads | while IFS= read -r branch; do
+      [ -z "$branch" ] && continue
+      [ "$branch" = "$current_branch" ] && continue
+      [ "$branch" = "main" ] && continue
+      [ "$branch" = "master" ] && continue
+      if git merge-base --is-ancestor "$branch" "$base_ref" 2>/dev/null; then
+        printf '%s\n' "$branch"
+      fi
+    done
+  )"
+
+  if [ -z "$merged_branches" ]; then
+    echo "No local branches merged into $base_ref"
+    return 0
+  fi
+
+  echo "Local branches merged into $base_ref:"
+  printf '%s\n' "$merged_branches" | sed 's/^/  /'
+  echo -n "Delete these branches? [y/N]: "
+  read response
+  case "$response" in
+    [Yy]|[Yy][Ee][Ss])
+      ;;
+    *)
+      echo "Cancelled"
+      return 0
+      ;;
+  esac
+
+  printf '%s\n' "$merged_branches" | while IFS= read -r branch; do
+    [ -z "$branch" ] && continue
+    git branch -D -- "$branch"
+  done
+}
+
+alias gbclean='_git_cleanup_main_merged_branches'
+
 # Create tmux session with iTerm2 integration (-CC) and 2x2 grid
 function tmuxh() {
   local session_name="${1:-main}"
