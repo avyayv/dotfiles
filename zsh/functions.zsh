@@ -2,12 +2,25 @@
 
 # Helper: create a new worktree from current HEAD or track remote branch
 function _gwt_create() {
-  echo -n "Branch name: "
-  read new_branch
+  local branch_input="$1"
+  local new_branch="$branch_input"
+  local remote_ref=""
+
+  if [ -z "$new_branch" ]; then
+    echo -n "Branch name: "
+    read new_branch
+  fi
+
   if [ -z "$new_branch" ]; then
     echo "Cancelled"
     return 1
   fi
+
+  if git show-ref --verify --quiet "refs/remotes/$branch_input"; then
+    remote_ref="$branch_input"
+    new_branch="${branch_input#*/}"
+  fi
+
   local wt_name="${new_branch//\//-}"
   local wt_path="$HOME/.avyay-worktrees/$wt_name"
   local source_dir="$(git rev-parse --show-toplevel)"
@@ -19,7 +32,9 @@ function _gwt_create() {
   # Check if branch exists locally
   local local_branch="$(git for-each-ref --format='%(refname:short)' refs/heads/"$new_branch" 2>/dev/null)"
   # Check if branch exists on remote
-  local remote_ref="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/"$new_branch" 2>/dev/null)"
+  if [ -z "$remote_ref" ]; then
+    remote_ref="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/"$new_branch" 2>/dev/null)"
+  fi
 
   local wt_created=0
   if [ -n "$local_branch" ]; then
@@ -44,6 +59,30 @@ function _gwt_create() {
     done < <(find "$source_dir" -name ".env*" -type f 2>/dev/null)
     cd "$wt_path"
   fi
+}
+
+# Pick from local and remote branches when creating a new worktree
+function _gwt_pick_branch() {
+  git fetch --prune --quiet
+
+  local branches="$(
+    {
+      git for-each-ref --sort='refname' --format=$'local\t%(refname:short)' refs/heads
+      git for-each-ref --sort='refname' --format=$'remote\t%(refname:short)' refs/remotes | grep -v '/HEAD$'
+    } | sed '/^$/d'
+  )"
+
+  if [ -z "$branches" ]; then
+    echo "No branches found" >&2
+    return 1
+  fi
+
+  local selected="$(printf '%s\n' "$branches" | fzf --height=50% --reverse --prompt="Branch: " --delimiter=$'\t' --with-nth=1,2)"
+  if [ -z "$selected" ]; then
+    return 0
+  fi
+
+  printf '%s\n' "${selected#*$'\t'}"
 }
 
 # Delete current worktree and return to main repo
@@ -121,10 +160,33 @@ function gwtb() {
 
 # Switch to another worktree or create new (requires fzf)
 # Carries unstaged/staged changes to the target worktree and drops them from the source
-# Usage: gwts
+# Usage: gwts [--new|-n]
 function gwts() {
   if ! command -v fzf &>/dev/null; then
     echo "fzf is required for interactive selection"
+    return 1
+  fi
+
+  if [ "$#" -gt 1 ]; then
+    echo "Usage: gwts [--new|-n]"
+    return 1
+  fi
+
+  if [ "$1" = "--new" ] || [ "$1" = "-n" ]; then
+    local selected_branch="$(_gwt_pick_branch)"
+    local pick_status=$?
+    if [ "$pick_status" -ne 0 ]; then
+      return "$pick_status"
+    fi
+    if [ -z "$selected_branch" ]; then
+      return 0
+    fi
+    _gwt_create "$selected_branch"
+    return
+  fi
+
+  if [ -n "$1" ]; then
+    echo "Usage: gwts [--new|-n]"
     return 1
   fi
 
