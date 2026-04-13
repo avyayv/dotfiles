@@ -158,6 +158,42 @@ function gwtb() {
   echo "Switched to base worktree: $main_worktree"
 }
 
+function _gwt_is_transient_path() {
+  local wt_path="$1"
+  [[ "$wt_path" == /private/* ]] || [[ "$wt_path" == /tmp/* ]] || [[ "$wt_path" == /var/folders/* ]]
+}
+
+function _gwt_list_visible_worktrees() {
+  local current_worktree="$1"
+  local line=""
+  local wt_path=""
+
+  git worktree prune --expire now >/dev/null 2>&1
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    wt_path="${line%%[[:space:]]*}"
+
+    if [ "$wt_path" = "$current_worktree" ]; then
+      print -r -- "$line"
+      continue
+    fi
+
+    [ -d "$wt_path" ] || continue
+
+    if [[ "$wt_path" == "$HOME/.avyay-worktrees/"* ]]; then
+      print -r -- "$line"
+      continue
+    fi
+
+    if _gwt_is_transient_path "$wt_path"; then
+      continue
+    fi
+
+    print -r -- "$line"
+  done < <(git worktree list 2>/dev/null)
+}
+
 # Switch to another worktree or create new (requires fzf)
 # Carries unstaged/staged changes to the target worktree and drops them from the source
 # Usage: gwts [--new|-n]
@@ -190,7 +226,8 @@ function gwts() {
     return 1
   fi
 
-  local worktrees="$(git worktree list 2>/dev/null)"
+  local current_worktree="$(git rev-parse --show-toplevel 2>/dev/null)"
+  local worktrees="$(_gwt_list_visible_worktrees "$current_worktree")"
   if [ -z "$worktrees" ]; then
     echo "Not in a git repository"
     return 1
