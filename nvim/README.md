@@ -21,7 +21,7 @@ This README provides an overview of the shortcuts and features in the Neovim con
 - `<leader>rn`: Rename symbol
 - `<leader>ca`: Show available code actions
 - `gr`: List all references to the symbol
-- `gi`: Navigate to symbol implementation
+- `gi`: Navigate to symbol implementation, or fall back to definition if the server does not support implementations
 - `<leader>D`: Navigate to type definition
 - `<leader>s`: List document symbols
 

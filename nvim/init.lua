@@ -233,6 +233,18 @@ vim.lsp.config('gopls', {
 
 vim.lsp.enable({ 'pyright', 'ts_ls', 'rust_analyzer', 'jsonls', 'gopls' })
 
+local function implementation_or_definition()
+  local bufnr = vim.api.nvim_get_current_buf()
+
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
+    if client:supports_method(vim.lsp.protocol.Methods.textDocument_implementation) then
+      return vim.lsp.buf.implementation()
+    end
+  end
+
+  return vim.lsp.buf.definition()
+end
+
 -- Key mappings for LSP functionality
 vim.api.nvim_create_autocmd('LspAttach', {
   group = vim.api.nvim_create_augroup('UserLspConfig', {}),
@@ -243,7 +255,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
     vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
     vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
     vim.keymap.set('n', 'gr', require('telescope.builtin').lsp_references, opts)
-    vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
+    vim.keymap.set('n', 'gi', implementation_or_definition, opts)
     vim.keymap.set('n', '<leader>D', vim.lsp.buf.type_definition, opts)
     vim.keymap.set('n', '<leader>s', require('telescope.builtin').lsp_document_symbols, opts)
   end,
