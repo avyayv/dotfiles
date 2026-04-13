@@ -136,10 +136,40 @@ require("lazy").setup({
     end
   },
 
+  -- Local Git diffs and file history
+  {
+    "sindrets/diffview.nvim",
+    cmd = {
+      "DiffviewOpen",
+      "DiffviewClose",
+      "DiffviewFileHistory",
+      "DiffviewToggleFiles",
+      "DiffviewFocusFiles",
+      "DiffviewRefresh",
+    },
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-tree/nvim-web-devicons",
+    },
+    keys = {
+      { "<leader>do", "<CMD>DiffviewOpen<CR>", desc = "Open local diff view" },
+      { "<leader>dc", "<CMD>DiffviewClose<CR>", desc = "Close diff view" },
+      { "<leader>dh", "<CMD>DiffviewFileHistory %<CR>", desc = "Current file history" },
+      { "<leader>dm", "<CMD>DiffviewOpen origin/main...HEAD<CR>", desc = "Branch diff vs origin/main" },
+    },
+    opts = {},
+    config = function(_, opts)
+      require("diffview").setup(opts)
+    end,
+  },
+
 })
 
 -- LSP Configuration (native vim.lsp.config for Nvim 0.11+)
 vim.lsp.config('pyright', {
+  cmd = { "pyright-langserver", "--stdio" },
+  filetypes = { "python" },
+  root_markers = { "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", ".git" },
   settings = {
     python = {
       analysis = {

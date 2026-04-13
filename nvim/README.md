@@ -4,6 +4,8 @@ This README provides an overview of the shortcuts and features in the Neovim con
 
 ## Shortcuts and Features
 
+`<leader>` is set to `Space`.
+
 ### File Explorer
 - `<Ctrl-n>`: Toggle the file explorer (NvimTree)
 
@@ -25,6 +27,13 @@ This README provides an overview of the shortcuts and features in the Neovim con
 
 ### Git Integration
 - Integrated through Lualine (status line)
+
+### Git Diffs (Diffview)
+- `<leader>do`: Open local working tree diff view
+- `<leader>dc`: Close the current diff view
+- `<leader>dh`: Show history for the current file
+- `<leader>dm`: Compare the current branch against `origin/main`
+- `:DiffviewOpen origin/main...HEAD`: Open the full branch diff manually
 
 ### Color Scheme
 - Tokyo Night theme
@@ -59,6 +68,6 @@ The following languages have specific LSP configurations:
 2. lualine: Enhanced status line
 3. nvim-lspconfig: Language Server Protocol support
 4. telescope: Fuzzy finder and picker
-5. codeium: AI code completion
+5. diffview.nvim: Local Git diff and file history workflow
 
 Note: This Neovim configuration offers a keyboard-centric workflow with extensive customization options.
