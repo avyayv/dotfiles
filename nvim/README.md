@@ -38,9 +38,6 @@ This README provides an overview of the shortcuts and features in the Neovim con
 ### Color Scheme
 - Tokyo Night theme
 
-### Code Completion
-- Codeium integration for AI-assisted code completion
-
 ## Additional Features
 
 - Line numbers enabled
