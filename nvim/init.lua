@@ -153,7 +153,7 @@ require("lazy").setup({
     },
     keys = {
       { "<leader>do", "<CMD>DiffviewOpen<CR>", desc = "Open local diff view" },
-      { "<leader>dc", "<CMD>DiffviewClose<CR>", desc = "Close diff view" },
+      { "<leader>dq", "<CMD>DiffviewClose<CR>", desc = "Close diff view" },
       { "<leader>dh", "<CMD>DiffviewFileHistory %<CR>", desc = "Current file history" },
       { "<leader>dm", "<CMD>DiffviewOpen origin/main...HEAD<CR>", desc = "Branch diff vs origin/main" },
     },

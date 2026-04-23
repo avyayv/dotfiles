@@ -30,7 +30,7 @@ This README provides an overview of the shortcuts and features in the Neovim con
 
 ### Git Diffs (Diffview)
 - `<leader>do`: Open local working tree diff view
-- `<leader>dc`: Close the current diff view
+- `<leader>dq`: Close the current diff view
 - `<leader>dh`: Show history for the current file
 - `<leader>dm`: Compare the current branch against `origin/main`
 - `:DiffviewOpen origin/main...HEAD`: Open the full branch diff manually
