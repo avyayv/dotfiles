@@ -404,3 +404,17 @@ function _tmux_tabs() {
 for i in {2..8}; do
   eval "function tmux${i}() { _tmux_tabs $i \"\$@\"; }"
 done
+
+# Wrap `claude` so `--yolo` is an alias for `--dangerously-skip-permissions`
+function claude() {
+  local args=()
+  local a
+  for a in "$@"; do
+    if [ "$a" = "--yolo" ]; then
+      args+=("--dangerously-skip-permissions")
+    else
+      args+=("$a")
+    fi
+  done
+  command claude "${args[@]}"
+}
