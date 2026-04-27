@@ -156,6 +156,7 @@ require("lazy").setup({
       { "<leader>dq", "<CMD>DiffviewClose<CR>", desc = "Close diff view" },
       { "<leader>dh", "<CMD>DiffviewFileHistory %<CR>", desc = "Current file history" },
       { "<leader>dm", "<CMD>DiffviewOpen origin/main...HEAD<CR>", desc = "Branch diff vs origin/main" },
+      { "<leader>du", "<CMD>DiffviewOpen upstream/main...HEAD<CR>", desc = "Branch diff vs upstream/main" },
     },
     opts = {},
     config = function(_, opts)
@@ -181,10 +182,20 @@ vim.lsp.config('pyright', {
   },
 })
 
-vim.lsp.config('ts_ls', {
-  filetypes = { "typescript", "typescriptreact", "typescript.tsx" },
-  cmd = { "typescript-language-server", "--stdio" },
+vim.lsp.config('vtsls', {
+  cmd = { "vtsls", "--stdio" },
+  filetypes = { "typescript", "typescriptreact", "javascript", "javascriptreact" },
   root_markers = { "package.json", "tsconfig.json", "jsconfig.json", ".git" },
+  settings = {
+    typescript = {
+      preferences = { importModuleSpecifier = "non-relative" },
+    },
+    vtsls = {
+      experimental = {
+        completion = { enableServerSideFuzzyMatch = true },
+      },
+    },
+  },
 })
 
 vim.lsp.config('rust_analyzer', {
@@ -231,7 +242,7 @@ vim.lsp.config('gopls', {
   },
 })
 
-vim.lsp.enable({ 'pyright', 'ts_ls', 'rust_analyzer', 'jsonls', 'gopls' })
+vim.lsp.enable({ 'pyright', 'vtsls', 'rust_analyzer', 'jsonls', 'gopls' })
 
 local function implementation_or_definition()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -245,12 +256,25 @@ local function implementation_or_definition()
   return vim.lsp.buf.definition()
 end
 
+-- vtsls jumps past re-exports/barrels with goto.sourceDefinition; fall back to plain definition.
+local function goto_source_definition()
+  local bufnr = vim.api.nvim_get_current_buf()
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr, name = 'vtsls' })) do
+    client:exec_cmd({
+      command = 'typescript.goToSourceDefinition',
+      arguments = { vim.uri_from_bufnr(bufnr), vim.lsp.util.make_position_params(0, client.offset_encoding).position },
+    }, { bufnr = bufnr })
+    return
+  end
+  vim.lsp.buf.definition()
+end
+
 -- Key mappings for LSP functionality
 vim.api.nvim_create_autocmd('LspAttach', {
   group = vim.api.nvim_create_augroup('UserLspConfig', {}),
   callback = function(ev)
     local opts = { buffer = ev.buf }
-    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+    vim.keymap.set('n', 'gd', goto_source_definition, opts)
     vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
     vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
     vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)

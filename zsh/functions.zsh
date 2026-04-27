@@ -57,6 +57,17 @@ function _gwt_create() {
       mkdir -p "$target_dir"
       ln -s "$env_file" "$wt_path/$rel_path" && echo "Symlinked $rel_path"
     done < <(find "$source_dir" -name ".env*" -type f 2>/dev/null)
+
+    # Symlink every node_modules tree from the source worktree so LSPs resolve
+    # types immediately. -prune stops find from descending into nested node_modules.
+    while IFS= read -r nm_dir; do
+      local rel_path="${nm_dir#$source_dir/}"
+      local target_path="$wt_path/$rel_path"
+      [ -e "$target_path" ] && continue
+      mkdir -p "$(dirname "$target_path")"
+      ln -s "$nm_dir" "$target_path" && echo "Symlinked $rel_path"
+    done < <(find "$source_dir" -name "node_modules" -type d -prune 2>/dev/null)
+
     cd "$wt_path"
   fi
 }
