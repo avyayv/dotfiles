@@ -34,21 +34,6 @@ tmux8 --vertical
 tmux8 myproject --vertical
 ```
 
-### `vsp [codex|pi|claude] [codex|pi|claude] [session_name]`
-
-Create parallel worktrees for A/B testing two coding agents, then open `pi` in the original/current repo as the judge. The contestant agents run in a tmux/iTerm vertical split; `codex` and `claude` are launched with `--yolo`, while `pi` is launched as `pi` because it is already yolo-mode by default. Each contestant gets its own fresh worktree from the current branch/HEAD under `~/.avyay-worktrees`. Tracked local changes, untracked non-ignored files, `.env*` symlinks, and `node_modules` symlinks are copied into both worktrees.
-
-Pass `-- <prompt>` to paste and submit the task into both contestant agents. The judge `pi` also receives a coordinator prompt with the task and both worktree paths.
-
-```bash
-vsp                                      # codex + pi
-vsp codex claude
-vsp pi claude my-ab
-vsp codex claude -- "implement the remove-slop cleanup"
-```
-
-`agentab` is kept as a backwards-compatible alias for `vsp`.
-
 ### `gwts`
 
 Switch between worktrees or create a new one (requires fzf). New worktrees are created from current HEAD with `.env*` files symlinked.
