@@ -1,5 +1,5 @@
 ---
-name: public-docs
+name: write-public-docs
 description: Write public-facing documentation that a fresh reader can actually follow. Use when the user asks for external/public docs, README content, API reference, user guides, or any documentation that will ship to an outside audience.
 ---
 

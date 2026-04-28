@@ -1,9 +1,9 @@
 ---
-name: vsp-orchestrator
-description: Use when acting as the judge/coordinator for a vsp/agentab A/B coding-agent run, comparing two temporary worktrees, choosing the better branch, applying the winner to the current/base worktree, and cleaning up the temporary vsp worktrees/branches.
+name: coding-agent-ab-test-orchestrator
+description: Use when acting as the judge/coordinator for a vsp/agentab coding-agent A/B test, comparing two temporary worktrees, choosing the better branch, applying the winner to the current/base worktree, and cleaning up the temporary vsp worktrees/branches.
 ---
 
-# VSP Orchestrator
+# Coding Agent A/B Test Orchestrator
 
 Act as the judge for a `vsp` / `agentab` run. The user should provide the two candidate worktrees, or the prompt should contain them. The goal is to compare exactly those two candidates, pick the better result first, then move the chosen work into the current/base worktree and clean up the temporary vsp worktrees safely.
 
