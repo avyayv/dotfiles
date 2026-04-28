@@ -1,19 +1,19 @@
 ---
 name: coding-agent-ab-test-orchestrator
-description: Use when acting as the judge/coordinator for an agenttab coding-agent A/B test, waiting for contestants to finish, comparing temporary worktrees, choosing the better branch, applying the winner to the current/base worktree, and cleaning up only after explicit user approval.
+description: Use when acting as the judge/coordinator for an agent-tab coding-agent A/B test, waiting for contestants to finish, comparing temporary worktrees, choosing the better branch, applying the winner to the current/base worktree, and cleaning up only after explicit user approval.
 ---
 
 # Coding Agent A/B Test Orchestrator
 
-Act as the judge for an `agenttab` run. The user should provide the candidate worktrees, or the prompt should contain them. The goal is to wait until the user says the contestant agents are done, compare exactly those candidates, pick the better result first, then move the chosen work into the current/base worktree if approved. Never clean up temporary worktrees unless the user explicitly agrees.
+Act as the judge for an `agent-tab` run. The user should provide the candidate worktrees, or the prompt should contain them. The goal is to wait until the user says the contestant agents are done, compare exactly those candidates, pick the better result first, then move the chosen work into the current/base worktree if approved. Never clean up temporary worktrees unless the user explicitly agrees.
 
 ## Mental model
 
-The current worktree is the base/judge worktree. There may be two or three contestant worktrees. The contestant worktrees live under the configured `agenttab` worktrees directory, which defaults to `~/.agenttab/worktrees`, and usually have paths/branches containing `agenttab`, such as:
+The current worktree is the base/judge worktree. There may be two or three contestant worktrees. The contestant worktrees live under the configured `agent-tab` worktrees directory, which defaults to `~/.agent-tab/worktrees`, and usually have paths/branches containing `agent-tab`, such as:
 
-- `~/.agenttab/worktrees/<repo>-<branch>-agenttab-codex-<stamp>`
-- `~/.agenttab/worktrees/<repo>-<branch>-agenttab-claude-<stamp>`
-- branches like `agenttab/<base>/<agent>-<stamp>`
+- `~/.agent-tab/worktrees/<repo>-<branch>-agent-tab-codex-<stamp>`
+- `~/.agent-tab/worktrees/<repo>-<branch>-agent-tab-claude-<stamp>`
+- branches like `agent-tab/<base>/<agent>-<stamp>`
 
 Do not assume the paths are correct. Verify the provided candidate paths against `git worktree list --porcelain`, branch names, timestamps, and diffs. If the candidate worktrees are not provided and cannot be inferred unambiguously from the prompt, ask for them before judging.
 
@@ -25,7 +25,7 @@ First establish the run:
 2. Extract the candidate worktree paths from the user prompt or judge prompt. These are the only candidates to compare.
 3. Verify all candidate paths exist, are git worktrees for the same repository, and appear in `git worktree list --porcelain`.
 4. Identify each candidate's branch and agent, if the agent can be inferred from the path/branch.
-5. If candidate paths are missing or ambiguous, ask the user for them. Do not scan all agenttab worktrees and pick candidates on your own unless the user explicitly asks.
+5. If candidate paths are missing or ambiguous, ask the user for them. Do not scan all agent-tab worktrees and pick candidates on your own unless the user explicitly asks.
 6. Confirm the base worktree status. If the base has unrelated uncommitted changes, do not overwrite them without asking.
 7. Stop and wait until the user explicitly says the contestant agents are done and asks you to judge. Do not judge immediately just because this prompt was populated at startup.
 
@@ -74,9 +74,9 @@ When making the current/base worktree become the winning result, apply the winne
 Safe application options, in preferred order:
 
 1. If the winner has only uncommitted changes, apply them to base with a patch:
-   - from base: `git -C <winner> diff --binary > /tmp/agenttab-winner.patch`
+   - from base: `git -C <winner> diff --binary > /tmp/agent-tab-winner.patch`
    - inspect the patch
-   - from base: `git apply --3way /tmp/agenttab-winner.patch`
+   - from base: `git apply --3way /tmp/agent-tab-winner.patch`
 2. If the winner made commits, cherry-pick the relevant commits onto the base branch.
 3. If both contestants have useful pieces, apply the winner first, then manually port specific hunks from the loser with careful review.
 
@@ -92,11 +92,11 @@ After applying:
 - Show `git status --short` and a concise diff summary.
 - Tell the user exactly what landed in the base worktree.
 
-## Cleaning up agenttab worktrees
+## Cleaning up agent-tab worktrees
 
 Only clean up after a winner has been selected and the user explicitly approves cleanup. Never clean up before choosing a winner. Never clean up merely because the winner was applied. A separate user confirmation is required.
 
-For each temporary agenttab worktree:
+For each temporary agent-tab worktree:
 
 1. Record the path and branch name.
 2. Confirm there is no untransferred work worth saving.
@@ -105,17 +105,17 @@ For each temporary agenttab worktree:
    - `git worktree remove <path>`
    - use `--force` only if the user explicitly agrees.
 5. Delete the temporary branch if safe:
-   - `git branch -D <branch>` for local agenttab branches after the worktree is removed.
+   - `git branch -D <branch>` for local agent-tab branches after the worktree is removed.
 6. Run `git worktree prune`.
 
-Never clean up non-agenttab worktrees. Never remove a worktree outside the configured `agenttab` worktrees directory unless the user explicitly identifies it as disposable.
+Never clean up non-agent-tab worktrees. Never remove a worktree outside the configured `agent-tab` worktrees directory unless the user explicitly identifies it as disposable.
 
 ## Output format
 
 Use this structure:
 
 ```markdown
-## Agenttab run
+## Agent-tab run
 - Base: <path/branch>
 - Contestant A: <agent/path/branch>
 - Contestant B: <agent/path/branch>
