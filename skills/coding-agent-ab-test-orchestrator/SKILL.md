@@ -9,10 +9,10 @@ Act as the judge for an `agenttab` run. The user should provide the candidate wo
 
 ## Mental model
 
-The current worktree is the base/judge worktree. There may be two or three contestant worktrees. The contestant worktrees live under `~/.avyay-worktrees` and usually have paths/branches containing `agenttab`, such as:
+The current worktree is the base/judge worktree. There may be two or three contestant worktrees. The contestant worktrees live under the configured `agenttab` worktrees directory, which defaults to `~/.agenttab/worktrees`, and usually have paths/branches containing `agenttab`, such as:
 
-- `~/.avyay-worktrees/<repo>-<branch>-agenttab-codex-<stamp>`
-- `~/.avyay-worktrees/<repo>-<branch>-agenttab-claude-<stamp>`
+- `~/.agenttab/worktrees/<repo>-<branch>-agenttab-codex-<stamp>`
+- `~/.agenttab/worktrees/<repo>-<branch>-agenttab-claude-<stamp>`
 - branches like `agenttab/<base>/<agent>-<stamp>`
 
 Do not assume the paths are correct. Verify the provided candidate paths against `git worktree list --porcelain`, branch names, timestamps, and diffs. If the candidate worktrees are not provided and cannot be inferred unambiguously from the prompt, ask for them before judging.
@@ -108,7 +108,7 @@ For each temporary agenttab worktree:
    - `git branch -D <branch>` for local agenttab branches after the worktree is removed.
 6. Run `git worktree prune`.
 
-Never clean up non-agenttab worktrees. Never remove a worktree outside `~/.avyay-worktrees` unless the user explicitly identifies it as disposable.
+Never clean up non-agenttab worktrees. Never remove a worktree outside the configured `agenttab` worktrees directory unless the user explicitly identifies it as disposable.
 
 ## Output format
 
