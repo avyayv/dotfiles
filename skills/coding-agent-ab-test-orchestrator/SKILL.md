@@ -59,7 +59,8 @@ Always wait first, then pick the better candidate before applying anything. Clea
 5. Apply the winner into the current/base worktree.
 6. Run checks in the base worktree.
 7. Ask separately before cleanup.
-8. Clean up candidate worktrees/branches only after the user explicitly approves cleanup.
+8. Record the ordered result with `agent-tab record --task-type <type> --order <winner,second,third> --notes <reason>`.
+9. Clean up candidate worktrees/branches only after the user explicitly approves cleanup.
 
 Return a clear verdict before making changes:
 
@@ -91,6 +92,18 @@ After applying:
 - Run targeted checks/tests again in the base worktree.
 - Show `git status --short` and a concise diff summary.
 - Tell the user exactly what landed in the base worktree.
+
+## Recording results
+
+After choosing a winner, record the full ordering before cleanup:
+
+```bash
+agent-tab record --task-type <type> --order <winner,second,third> --notes "<short reason>"
+```
+
+Use the most specific useful task type, such as `frontend`, `backend`, `refactor`, `debugging`, `tests`, `docs`, `infra`, or `unknown` if unclear. For two contestants, pass two names in order. For three contestants, pass all three. If contestants include model-qualified names, preserve them in the order, e.g. `codex/gpt-5.5,claude/claude-opus-4.7,pi`.
+
+Use `agent-tab stats` or `agent-tab stats --task-type <type>` when the user asks who is winning historically.
 
 ## Cleaning up agent-tab worktrees
 
