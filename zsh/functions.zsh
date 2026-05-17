@@ -1,5 +1,56 @@
 # Custom ZSH Functions
 
+# Print the full browser URL for the Vite frontend exposed by a running
+# Docker Compose stack. Usage: frontend-url [folder] [service] [container_port]
+function frontend_url() {
+  local dir="${1:-$PWD}"
+  local service="${2:-web}"
+  local container_port="${3:-5173}"
+  local search_dir=""
+  local compose_file=""
+  local published=""
+  local port=""
+
+  if [ ! -d "$dir" ]; then
+    echo "Folder does not exist: $dir" >&2
+    return 1
+  fi
+
+  search_dir="$(cd "$dir" && pwd)"
+  while [ "$search_dir" != "/" ]; do
+    for candidate in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do
+      if [ -f "$search_dir/$candidate" ]; then
+        compose_file="$search_dir/$candidate"
+        break 2
+      fi
+    done
+    search_dir="$(dirname "$search_dir")"
+  done
+
+  if [ -z "$compose_file" ]; then
+    echo "No Docker Compose file found at or above: $dir" >&2
+    return 1
+  fi
+
+  published="$(docker compose -f "$compose_file" port "$service" "$container_port" 2>/dev/null)"
+  if [ -z "$published" ]; then
+    echo "No published port found for $service:$container_port in $(dirname "$compose_file"). Is Compose running?" >&2
+    return 1
+  fi
+
+  port="${published##*:}"
+  echo "http://mac-mini.tailf3cee5.ts.net:$port"
+}
+
+alias frontend-url='frontend_url'
+alias feurl='frontend_url'
+
+# Use Neovim when typing `vim`.
+alias vim='nvim'
+
+# Use Neovim when typing `vim`.
+alias vim='nvim'
+
 # Helper: create a new worktree from current HEAD or track remote branch
 function _gwt_create() {
   local branch_input="$1"
