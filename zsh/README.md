@@ -39,7 +39,19 @@ tmux8 myproject --vertical
 Switch between worktrees or create a new one (requires fzf). New worktrees are created from current HEAD with `.env*` files symlinked.
 
 ```bash
-gwts  # Opens fzf picker - select a worktree or "+ Create new worktree"
+gwts       # Opens fzf picker - select a worktree or "+ Create new worktree"
+gwts api   # Opens picker with initial query "api"
+```
+
+Inside the picker, use `Ctrl-V` or `Alt-V` to paste the macOS clipboard into the search query.
+
+### `gwtn [--agent <agent>] [--branch <start-ref>] <branch-name> <prompt>`
+
+Create a worktree branch, open it in a new tmux window (when inside tmux) or iTerm2 tab, and start a coding agent with the prompt submitted. Defaults to `pi` and branches from the current HEAD unless `--branch` is provided.
+
+```bash
+gwtn feat/foo "implement foo"
+gwtn --agent claude --branch main feat/foo "implement foo"
 ```
 
 ### `gwtb`

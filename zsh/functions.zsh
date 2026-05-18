@@ -48,12 +48,10 @@ alias feurl='frontend_url'
 # Use Neovim when typing `vim`.
 alias vim='nvim'
 
-# Use Neovim when typing `vim`.
-alias vim='nvim'
-
 # Helper: create a new worktree from current HEAD or track remote branch
 function _gwt_create() {
   local branch_input="$1"
+  local start_ref="${2:-HEAD}"
   local new_branch="$branch_input"
   local remote_ref=""
 
@@ -97,8 +95,8 @@ function _gwt_create() {
     echo "Tracking remote branch: $remote_ref"
     git worktree add --track -b "$new_branch" "$wt_path" "$remote_ref" && wt_created=1
   else
-    # Create new branch from HEAD
-    git worktree add -b "$new_branch" "$wt_path" HEAD && wt_created=1
+    # Create new branch from the requested start point (defaults to current HEAD)
+    git worktree add -b "$new_branch" "$wt_path" "$start_ref" && wt_created=1
   fi
 
   if [ "$wt_created" -eq 1 ]; then
@@ -123,8 +121,146 @@ function _gwt_create() {
   fi
 }
 
+function _gwt_worktree_path_for_branch() {
+  local branch_name="$1"
+  local wt_name="${branch_name//\//-}"
+  printf '%s\n' "$HOME/.avyay-worktrees/$wt_name"
+}
+
+function _gwt_open_agent_tab() {
+  local wt_path="$1"
+  local tab_name="$2"
+  local agent_cmd="$3"
+  local prompt="$4"
+  local run_cmd="cd ${(q)wt_path} && ${agent_cmd} ${(q)prompt}"
+
+  if [ -n "$TMUX" ] && command -v tmux >/dev/null 2>&1; then
+    # Start a normal interactive shell so your prompt/theme/zshrc load, then submit the agent command.
+    local tmux_target="$(tmux new-window -P -F '#{session_name}:#{window_index}' -c "$wt_path" -n "$tab_name")"
+    tmux send-keys -t "$tmux_target" "$run_cmd" C-m
+    return $?
+  fi
+
+  if command -v osascript >/dev/null 2>&1; then
+    osascript - "$run_cmd" <<'APPLESCRIPT'
+on run argv
+  set cmd to item 1 of argv
+  tell application "iTerm2"
+    activate
+    if (count of windows) = 0 then
+      create window with default profile
+    end if
+    tell current window
+      create tab with default profile
+      tell current session to write text cmd
+    end tell
+  end tell
+end run
+APPLESCRIPT
+    return $?
+  fi
+
+  echo "Could not open a new tab: not inside tmux and osascript is unavailable" >&2
+  return 1
+}
+
+# Open a new worktree in a new tmux/iTerm tab and start a coding agent with a prompt
+# Usage: gwtn [--agent <agent>] [--branch <start-ref>] <branch-name> <prompt>
+function gwtn() {
+  local agent_cmd="pi"
+  local start_ref="HEAD"
+  local new_branch=""
+  local prompt=""
+  local current_dir="$PWD"
+  local wt_path=""
+  local create_status=0
+  local positionals=()
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Not in a git repository" >&2
+    return 1
+  fi
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --agent|-a)
+        shift
+        if [ -z "$1" ]; then
+          echo "Missing value for --agent" >&2
+          echo "Usage: gwtn [--agent <agent>] [--branch <start-ref>] <branch-name> <prompt>" >&2
+          return 1
+        fi
+        agent_cmd="$1"
+        ;;
+      --branch|-b)
+        shift
+        if [ -z "$1" ]; then
+          echo "Missing value for --branch" >&2
+          echo "Usage: gwtn [--agent <agent>] [--branch <start-ref>] <branch-name> <prompt>" >&2
+          return 1
+        fi
+        start_ref="$1"
+        ;;
+      --help|-h)
+        echo "Usage: gwtn [--agent <agent>] [--branch <start-ref>] <branch-name> <prompt>"
+        echo "Example: gwtn feat/foo \"implement foo\""
+        echo "Example: gwtn --agent claude --branch main feat/foo \"implement foo\""
+        echo "Example: gwtn feat/foo --agent claude \"implement foo\""
+        return 0
+        ;;
+      --)
+        shift
+        positionals+=("$@")
+        break
+        ;;
+      --*)
+        echo "Unknown option: $1" >&2
+        echo "Usage: gwtn [--agent <agent>] [--branch <start-ref>] <branch-name> <prompt>" >&2
+        return 1
+        ;;
+      *)
+        positionals+=("$1")
+        ;;
+    esac
+    shift
+  done
+
+  new_branch="${positionals[1]}"
+  prompt="${(j: :)positionals[2,-1]}"
+
+  if [ -z "$new_branch" ] || [ -z "$prompt" ]; then
+    echo "Usage: gwtn [--agent <agent>] [--branch <start-ref>] <branch-name> <prompt>" >&2
+    return 1
+  fi
+
+  wt_path="$(_gwt_worktree_path_for_branch "$new_branch")"
+
+  if git -C "$wt_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Using existing worktree: $wt_path"
+  else
+    _gwt_create "$new_branch" "$start_ref"
+    create_status=$?
+    cd "$current_dir" || return 1
+    if [ "$create_status" -ne 0 ]; then
+      return "$create_status"
+    fi
+  fi
+
+  echo "Opening $agent_cmd in new tab: $wt_path"
+  _gwt_open_agent_tab "$wt_path" "$new_branch" "$agent_cmd" "$prompt"
+}
+
 # Pick from local and remote branches when creating a new worktree
+function _gwt_fzf_clipboard_bind() {
+  # fzf normally handles bracketed paste from the terminal, but Ctrl-V is bound
+  # to page-down. Make Ctrl-V/Alt-V explicitly append the macOS clipboard to
+  # the current query so paste works inside gwts/gwtn branch pickers too.
+  printf '%s\n' 'transform-query:printf "%s%s" "$FZF_QUERY" "$(pbpaste 2>/dev/null || printf "")"'
+}
+
 function _gwt_pick_branch() {
+  local initial_query="$1"
+
   git fetch --prune --quiet
 
   local branches="$(
@@ -139,7 +275,8 @@ function _gwt_pick_branch() {
     return 1
   fi
 
-  local selected="$(printf '%s\n' "$branches" | fzf --height=50% --reverse --prompt="Branch: " --delimiter=$'\t' --with-nth=1,2)"
+  local paste_action="$(_gwt_fzf_clipboard_bind)"
+  local selected="$(printf '%s\n' "$branches" | fzf --height=50% --reverse --prompt="Branch: " --delimiter=$'\t' --with-nth=1,2 --query="$initial_query" --bind "ctrl-v:$paste_action" --bind "alt-v:$paste_action")"
   if [ -z "$selected" ]; then
     return 0
   fi
@@ -258,20 +395,23 @@ function _gwt_list_visible_worktrees() {
 
 # Switch to another worktree or create new (requires fzf)
 # Carries unstaged/staged changes to the target worktree and drops them from the source
-# Usage: gwts [--new|-n]
+# Usage: gwts [--new|-n] [query]
 function gwts() {
   if ! command -v fzf &>/dev/null; then
     echo "fzf is required for interactive selection"
     return 1
   fi
 
-  if [ "$#" -gt 1 ]; then
-    echo "Usage: gwts [--new|-n]"
+  if [ "$#" -gt 2 ]; then
+    echo "Usage: gwts [--new|-n] [query]"
     return 1
   fi
 
+  local initial_query=""
+
   if [ "$1" = "--new" ] || [ "$1" = "-n" ]; then
-    local selected_branch="$(_gwt_pick_branch)"
+    initial_query="$2"
+    local selected_branch="$(_gwt_pick_branch "$initial_query")"
     local pick_status=$?
     if [ "$pick_status" -ne 0 ]; then
       return "$pick_status"
@@ -283,10 +423,12 @@ function gwts() {
     return
   fi
 
-  if [ -n "$1" ]; then
-    echo "Usage: gwts [--new|-n]"
+  if [ -n "$2" ]; then
+    echo "Usage: gwts [--new|-n] [query]"
     return 1
   fi
+
+  initial_query="$1"
 
   local current_worktree="$(git rev-parse --show-toplevel 2>/dev/null)"
   local worktrees="$(_gwt_list_visible_worktrees "$current_worktree")"
@@ -297,7 +439,8 @@ function gwts() {
 
   local options="+ Create new worktree
 $worktrees"
-  local selected="$(echo "$options" | fzf --height=40% --reverse --prompt="Worktree: ")"
+  local paste_action="$(_gwt_fzf_clipboard_bind)"
+  local selected="$(echo "$options" | fzf --height=40% --reverse --prompt="Worktree: " --query="$initial_query" --bind "ctrl-v:$paste_action" --bind "alt-v:$paste_action")"
   if [ -z "$selected" ]; then
     return 0
   fi
