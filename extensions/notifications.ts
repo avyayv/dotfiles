@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { complete } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const WEBHOOK_ENV = "PI_SLACK_WEBHOOK_URL";
@@ -11,12 +12,8 @@ const MENTION_ENV = "PI_SLACK_MENTION";
 const IMESSAGE_RECIPIENT_ENV = "PI_IMESSAGE_RECIPIENT";
 const IMESSAGE_RECIPIENT_FILE = join(homedir(), ".pi/agent/secrets/imessage-recipient");
 const IMESSAGE_COMMAND_ENV = "PI_IMESSAGE_COMMAND";
-const SUMMARY_MODEL_ENV = "PI_NOTIFICATION_SUMMARY_MODEL";
-const LEGACY_SUMMARY_MODEL_ENV = "PI_SLACK_SUMMARY_MODEL";
-const OLLAMA_HOST_ENV = "PI_NOTIFICATION_OLLAMA_HOST";
-const OLLAMA_MODEL_ENV = "PI_NOTIFICATION_OLLAMA_MODEL";
-const DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434";
-const DEFAULT_OLLAMA_SUMMARY_MODEL = "qwen3.6:35b";
+const SUMMARY_PROVIDER = "openai-codex";
+const SUMMARY_MODEL = "gpt-5.5";
 const MIN_NOTIFICATION_DURATION_MS = 30_000;
 const MAX_CONVERSATION_CHARS = 16_000;
 const MAX_SUMMARY_CHARS = 1_200;
@@ -256,53 +253,42 @@ function fallbackSummary(entries: SessionEntry[]): string {
 	return lines.join("\n") || "No user/assistant messages found in the current session.";
 }
 
-function getOllamaSummaryModel(): string {
-	const configured =
-		process.env[OLLAMA_MODEL_ENV]?.trim() ||
-		process.env[SUMMARY_MODEL_ENV]?.trim() ||
-		process.env[LEGACY_SUMMARY_MODEL_ENV]?.trim();
-	if (!configured) return DEFAULT_OLLAMA_SUMMARY_MODEL;
-
-	const slashIndex = configured.indexOf("/");
-	if (slashIndex < 0) return configured;
-
-	const provider = configured.slice(0, slashIndex);
-	const id = configured.slice(slashIndex + 1);
-	return provider === "ollama" && id ? id : DEFAULT_OLLAMA_SUMMARY_MODEL;
-}
-
-function getOllamaHost(): string {
-	return (process.env[OLLAMA_HOST_ENV]?.trim() || DEFAULT_OLLAMA_HOST).replace(/\/+$/, "");
-}
-
-function stripThinkingBlocks(text: string): string {
-	return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-}
-
-async function completeWithLocalOllama(prompt: string): Promise<string | undefined> {
-	const model = getOllamaSummaryModel();
-	const response = await fetch(`${getOllamaHost()}/api/chat`, {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({
-			model,
-			stream: false,
-			think: false,
-			messages: [{ role: "user", content: prompt }],
-			options: {
-				temperature: 0.2,
-				num_predict: 300,
-			},
-		}),
-	});
-
-	if (!response.ok) {
-		throw new Error(`Ollama ${model} failed: ${response.status} ${truncate(await response.text(), 300)}`);
+async function completeWithSummaryModel(ctx: ExtensionContext, prompt: string): Promise<string | undefined> {
+	const model = ctx.modelRegistry.find(SUMMARY_PROVIDER, SUMMARY_MODEL);
+	if (!model) {
+		throw new Error(`Summary model ${SUMMARY_PROVIDER}/${SUMMARY_MODEL} was not found`);
 	}
 
-	const payload = (await response.json()) as { message?: { content?: unknown }; response?: unknown };
-	const content = typeof payload.message?.content === "string" ? payload.message.content : payload.response;
-	return typeof content === "string" ? stripThinkingBlocks(content) : undefined;
+	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+	if (!auth.ok) {
+		throw new Error(`Summary auth failed: ${auth.error}`);
+	}
+
+	const response = await complete(
+		model,
+		{
+			messages: [
+				{
+					role: "user" as const,
+					content: [{ type: "text" as const, text: prompt }],
+					timestamp: Date.now(),
+				},
+			],
+		},
+		{
+			apiKey: auth.apiKey,
+			headers: auth.headers,
+			maxTokens: 300,
+			signal: ctx.signal,
+		},
+	);
+
+	const content = response.content
+		.filter((part): part is { type: "text"; text: string } => part.type === "text")
+		.map((part) => part.text)
+		.join("\n")
+		.trim();
+	return content || undefined;
 }
 
 function buildSummaryPrompt(conversationText: string, cwd: string): string {
@@ -319,12 +305,12 @@ function buildSummaryPrompt(conversationText: string, cwd: string): string {
 	].join("\n");
 }
 
-async function summarizeSession(entries: SessionEntry[], cwd: string): Promise<string> {
+async function summarizeSession(ctx: ExtensionContext, entries: SessionEntry[], cwd: string): Promise<string> {
 	const conversationText = buildConversationText(entries);
 	if (!conversationText.trim()) return fallbackSummary(entries);
 
 	try {
-		const summary = await completeWithLocalOllama(buildSummaryPrompt(conversationText, cwd));
+		const summary = await completeWithSummaryModel(ctx, buildSummaryPrompt(conversationText, cwd));
 		return summary ? truncate(summary, MAX_SUMMARY_CHARS) : fallbackSummary(entries);
 	} catch (error) {
 		console.error(`[notifications] Summary failed: ${compactError(error)}`);
@@ -391,7 +377,7 @@ async function buildMessage(pi: ExtensionAPI, ctx: ExtensionContext, options: { 
 
 	const [tmuxLocation, generatedSummary, detectedPrUrl] = await Promise.all([
 		getTmuxLocation(),
-		summarizeSession(entries, cwd),
+		summarizeSession(ctx, entries, cwd),
 		getCurrentGitHubPrUrl(cwd),
 	]);
 	const summary = generatedSummary;
