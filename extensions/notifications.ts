@@ -14,14 +14,14 @@ const IMESSAGE_RECIPIENT_FILE = join(homedir(), ".pi/agent/secrets/imessage-reci
 const IMESSAGE_COMMAND_ENV = "PI_IMESSAGE_COMMAND";
 const SUMMARY_PROVIDER = "openai-codex";
 const SUMMARY_MODEL = "gpt-5.5";
-const MIN_NOTIFICATION_DURATION_MS = 30_000;
+const MIN_AUTO_NOTIFICATION_DURATION_MS = 10 * 60_000;
 const MAX_CONVERSATION_CHARS = 16_000;
 const MAX_SUMMARY_CHARS = 1_200;
 const MAX_QUESTION_CHARS = 700;
 const MAX_IMESSAGE_CHARS = 4_000;
 const GITHUB_PR_RE = /https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/g;
 const NOTIFICATION_SETTINGS_CUSTOM_TYPE = "notifications-settings";
-const DEFAULT_NOTIFICATION_SETTINGS = { imessage: true, slack: false };
+const DEFAULT_NOTIFICATION_SETTINGS = { enabled: false, imessage: true, slack: false };
 const execFileAsync = promisify(execFile);
 
 type ContentBlock = {
@@ -46,6 +46,7 @@ type SessionEntry = {
 };
 
 type NotificationSettings = {
+	enabled: boolean;
 	imessage: boolean;
 	slack: boolean;
 };
@@ -54,8 +55,8 @@ function compactError(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-function shouldNotifyForDuration(startedAt: number | undefined, endedAt: number): boolean {
-	return startedAt !== undefined && endedAt - startedAt > MIN_NOTIFICATION_DURATION_MS;
+function shouldAutoNotifyForDuration(startedAt: number | undefined, endedAt: number): boolean {
+	return startedAt !== undefined && endedAt - startedAt >= MIN_AUTO_NOTIFICATION_DURATION_MS;
 }
 
 function sessionLabel(pi: ExtensionAPI): string {
@@ -120,6 +121,10 @@ function normalizeNotificationSettings(data: unknown): NotificationSettings | un
 	const settings = { ...DEFAULT_NOTIFICATION_SETTINGS };
 	let hasSetting = false;
 
+	if (typeof value.enabled === "boolean") {
+		settings.enabled = value.enabled;
+		hasSetting = true;
+	}
 	if (typeof value.imessage === "boolean") {
 		settings.imessage = value.imessage;
 		hasSetting = true;
@@ -152,12 +157,15 @@ function agentEndWasAborted(event: { messages?: unknown[] }): boolean {
 }
 
 function notificationSettingsText(settings: NotificationSettings): string {
-	return `iMessage ${settings.imessage ? "on" : "off"}, Slack ${settings.slack ? "on" : "off"}`;
+	return `session ${settings.enabled ? "on" : "off"}, iMessage ${settings.imessage ? "on" : "off"}, Slack ${settings.slack ? "on" : "off"}`;
 }
 
 function updateNotificationStatus(ctx: ExtensionContext, settings: NotificationSettings): void {
 	if (!ctx.hasUI) return;
-	ctx.ui.setStatus("notifications", `notify: ${settings.imessage ? "iMsg ✓" : "iMsg ×"} ${settings.slack ? "Slack ✓" : "Slack ×"}`);
+	ctx.ui.setStatus(
+		"notifications",
+		`notify: ${settings.enabled ? "session ✓" : "session ×"} ${settings.imessage ? "iMsg ✓" : "iMsg ×"} ${settings.slack ? "Slack ✓" : "Slack ×"}`,
+	);
 }
 
 function parseNotificationToggleArgs(
@@ -185,6 +193,15 @@ function parseNotificationToggleArgs(
 		return true;
 	};
 
+	if ((target === "on" || target === "off" || target === "toggle") && parts.length === 1) {
+		if (target === "on") next.enabled = true;
+		else if (target === "off") next.enabled = false;
+		else next.enabled = !next.enabled;
+		return { settings: next, message: `Set session notifications ${next.enabled ? "on" : "off"}` };
+	}
+	if ((target === "session" || target === "enabled") && apply("enabled")) {
+		return { settings: next, message: `Set session notifications ${next.enabled ? "on" : "off"}` };
+	}
 	if ((target === "imessage" || target === "imsg") && apply("imessage")) {
 		return { settings: next, message: `Set iMessage notifications ${next.imessage ? "on" : "off"}` };
 	}
@@ -200,14 +217,12 @@ function parseNotificationToggleArgs(
 			next.imessage = enabled;
 			next.slack = enabled;
 		}
-		return { settings: next, message: `Set all notifications ${action === "toggle" ? notificationSettingsText(next) : action}` };
-	}
-	if ((target === "on" || target === "off" || target === "toggle") && parts.length === 1) {
-		return parseNotificationToggleArgs(`all ${target}`, current);
+		return { settings: next, message: `Set all delivery channels ${action === "toggle" ? notificationSettingsText(next) : action}` };
 	}
 
 	return {
-		message: "Usage: /notifications [status|default|imessage on/off/toggle|slack on/off/toggle|all on/off/toggle]",
+		message:
+			"Usage: /notifications [status|on|off|toggle|default|session on/off/toggle|imessage on/off/toggle|slack on/off/toggle|all on/off/toggle]",
 	};
 }
 
@@ -487,8 +502,11 @@ export default function notificationsExtension(pi: ExtensionAPI) {
 		const startedAt = agentStartedAt;
 		agentStartedAt = undefined;
 
-		// Only notify for longer agent turns; quick turns are intentionally silent.
-		if (!shouldNotifyForDuration(startedAt, Date.now())) return;
+		const settings = getNotificationSettings(ctx);
+		updateNotificationStatus(ctx, settings);
+
+		// Notify only when enabled for this session, or automatically after a very long turn.
+		if (!settings.enabled && !shouldAutoNotifyForDuration(startedAt, Date.now())) return;
 
 		// Esc aborts the in-flight turn with assistant stopReason="aborted". Do not send
 		// a "Pi is done" notification for user-interrupted runs.
@@ -497,8 +515,6 @@ export default function notificationsExtension(pi: ExtensionAPI) {
 		// If steering/follow-up messages are queued, wait for the later agent run to finish.
 		if (ctx.hasPendingMessages()) return;
 
-		const settings = getNotificationSettings(ctx);
-		updateNotificationStatus(ctx, settings);
 		if (!settings.imessage && !settings.slack) return;
 
 		void (async () => {
@@ -514,7 +530,7 @@ export default function notificationsExtension(pi: ExtensionAPI) {
 	});
 
 	const notificationCommand = {
-		description: "Show or change per-conversation notification settings",
+		description: "Show or change session notification settings",
 		handler: async (args: string, ctx: ExtensionContext) => {
 			const current = getNotificationSettings(ctx);
 			const result = parseNotificationToggleArgs(args, current);
