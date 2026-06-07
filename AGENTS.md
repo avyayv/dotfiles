@@ -11,10 +11,6 @@ Do not use Python as the default solution for routine file inspection, search, o
 
 Only use Python when it is clearly the right tool for the task, such as running an existing Python project, doing nontrivial scripting/data processing, or when requested by the user.
 
-## Design changes
-
-Anytime you need to make a design change, use `claude -p` with an excellent, well-scoped prompt that is un-opinionated about UI/UX direction.
-
 ## Local links from this VM
 
 This machine is accessed through a VM/tailnet setup. When giving the user clickable links or URLs for services running on this machine, do not use `localhost` or `127.0.0.1` in the displayed link. Replace the hostname with:

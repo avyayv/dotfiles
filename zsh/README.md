@@ -34,6 +34,18 @@ tmux8 --vertical
 tmux8 myproject --vertical
 ```
 
+### `dari_tmux` / `dari-tmux` / `dtmux`
+
+Creates or attaches the persistent Dari tmux workspace. It starts with a `Company Context` tab that preserves/moves the existing long-running Codex session when present and verifies it is running `codex resume ... --yolo`; otherwise it restarts/resumes it with `--yolo`. It also starts an `orchestrator` tab running the iMessage Pi agent for the configured chat recipient.
+
+```bash
+dari_tmux
+dari-tmux --restart-orchestrator
+DARI_COMPANY_CODEX_SESSION_ID=<codex-session-id> dari_tmux
+```
+
+By default it stops the old launchd iMessage responder so only the tmux orchestrator replies. Use `--no-stop-imessage` to skip that.
+
 ### `gwts`
 
 Switch between worktrees or create a new one (requires fzf). New worktrees are created from current HEAD with `.env*` files symlinked.
