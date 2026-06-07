@@ -639,7 +639,7 @@ function _dari_start_orchestrator_window() {
   local orchestrator_root="$pi_agent_dir/orchestrator-imessage"
   local imessage_agent_script="$HOME/.pi/agent-personal/imessage-agent/agent.mjs"
   local agent_label="Dari orchestrator agent"
-  local extra_prompt="You are the Dari coding orchestrator. Use the orchestrator skill for requests about delegating coding work, opening tmux tabs, creating worktrees, or coordinating agents in /Users/avyay/code/dari/agent-host. Keep iMessage replies concise and conversational."
+  local extra_prompt="You are the Dari coding orchestrator. Use the orchestrator skill for requests about delegating coding work, opening tmux tabs, creating worktrees, or coordinating agents in /Users/avyay/code/dari/agent-host. Always use subagents if a task looks like it will need more than 3 tool calls, or if any tool call is likely to take more than 5 seconds. The main iMessage/orchestrator session should reply quickly, delegate, and avoid blocking. Keep iMessage replies concise and conversational."
   local imessage_recipient="${PI_IMESSAGE_RECIPIENT:-}"
   local recipient_file="$HOME/.pi/agent/secrets/imessage-recipient"
   local run_cmd=""

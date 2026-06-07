@@ -19,6 +19,10 @@ cp bin/pi-imessage-agent-message ~/.local/bin/pi-imessage-agent-message
 chmod 0755 ~/.local/bin/pi-imessage-agent-message
 ```
 
+## Prompt policy
+
+The managed agent prompt requires: Always use subagents if a task looks like it will need more than 3 tool calls, or if any tool call is likely to take more than 5 seconds. The main iMessage/orchestrator session should reply quickly, delegate, and avoid blocking.
+
 ## Local subagent webhook
 
 The agent exposes a localhost-only webhook by default:
