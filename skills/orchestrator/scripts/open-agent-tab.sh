@@ -9,7 +9,7 @@ Options:
   --session <name>     tmux session to open the window in (default: $DARI_ORCHESTRATOR_TMUX_SESSION or dari)
   --repo <path>        source repo path (default: $DARI_AGENT_HOST_DIR or ~/code/dari/agent-host)
   --start-ref <ref>    ref for new branches (default: origin/main, fallback: HEAD)
-  --agent <command>    agent command to run (default: pi)
+  --agent <name>       agentmux agent name to run (default: pi)
   --name <name>        tmux window name (default: branch with / replaced by -)
   --help               show this help
 USAGE
@@ -68,6 +68,11 @@ done
 
 if [ -z "$branch" ] || [ -z "$prompt" ]; then
   usage >&2
+  exit 1
+fi
+
+if ! command -v agentmux >/dev/null 2>&1; then
+  echo "agentmux is required on PATH" >&2
   exit 1
 fi
 
@@ -148,11 +153,10 @@ if [ -z "$window_name" ]; then
   window_name="$wt_name"
 fi
 
-quoted_wt="$(printf '%q' "$wt_path")"
-quoted_prompt="$(printf '%q' "$prompt")"
-run_cmd="cd $quoted_wt && $agent $quoted_prompt"
-
-target="$(tmux new-window -P -F '#{session_name}:#{window_index}' -t "$session:" -c "$wt_path" -n "$window_name")"
-tmux send-keys -t "$target" "$run_cmd" C-m
-
-echo "Opened $target ($window_name) in $wt_path"
+agentmux launch \
+  --repo "$source_dir" \
+  --worktree "$wt_path" \
+  --session "$session" \
+  --agent "$agent" \
+  --name "$window_name" \
+  --prompt "$prompt"
