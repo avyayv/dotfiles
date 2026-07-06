@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -9,16 +10,15 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 const WEBHOOK_ENV = "PI_SLACK_WEBHOOK_URL";
 const WEBHOOK_FILE = join(homedir(), ".pi/agent/secrets/slack-webhook-url");
 const MENTION_ENV = "PI_SLACK_MENTION";
-const IMESSAGE_RECIPIENT_ENV = "PI_IMESSAGE_RECIPIENT";
-const IMESSAGE_RECIPIENT_FILE = join(homedir(), ".pi/agent/secrets/imessage-recipient");
-const IMESSAGE_COMMAND_ENV = "PI_IMESSAGE_COMMAND";
+const RELAYMUX_COMMAND_ENV = "PI_RELAYMUX_COMMAND";
+const IMESSAGE_NOTIFY_SOURCE = "pi-completion-extension";
 const SUMMARY_PROVIDER = "openai-codex";
 const SUMMARY_MODEL = "gpt-5.5";
 const MIN_AUTO_NOTIFICATION_DURATION_MS = 10 * 60_000;
 const MAX_CONVERSATION_CHARS = 16_000;
 const MAX_SUMMARY_CHARS = 1_200;
 const MAX_QUESTION_CHARS = 700;
-const MAX_IMESSAGE_CHARS = 4_000;
+const MAX_WEBHOOK_TEXT_CHARS = 4_000;
 const GITHUB_PR_RE = /https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/g;
 const NOTIFICATION_SETTINGS_CUSTOM_TYPE = "notifications-settings";
 const DEFAULT_NOTIFICATION_SETTINGS = { enabled: false, imessage: true, slack: false };
@@ -441,37 +441,57 @@ async function postToSlack(text: string): Promise<void> {
 	}
 }
 
-async function getIMessageRecipient(): Promise<string | undefined> {
-	const fromEnv = process.env[IMESSAGE_RECIPIENT_ENV]?.trim();
-	if (fromEnv) return fromEnv;
-
-	try {
-		const fromFile = (await readFile(IMESSAGE_RECIPIENT_FILE, "utf8")).trim();
-		return fromFile || undefined;
-	} catch {
-		return undefined;
-	}
+function getRelaymuxCommand(): string {
+	return process.env[RELAYMUX_COMMAND_ENV]?.trim() || "relaymux";
 }
 
-async function postToIMessage(text: string): Promise<void> {
-	const recipient = await getIMessageRecipient();
-	if (!recipient) return;
+function buildIMessageNotifyIdempotencyKey(
+	ctx: ExtensionContext,
+	text: string,
+	options: { startedAt?: number; test?: boolean } = {},
+): string {
+	const sessionFile = ctx.sessionManager.getSessionFile() ?? ctx.cwd;
+	const stableRunPart = options.startedAt === undefined ? Date.now() : options.startedAt;
+	const digest = createHash("sha256")
+		.update([sessionFile, ctx.cwd, stableRunPart, text].join("\n"))
+		.digest("hex")
+		.slice(0, 24);
+	return `${IMESSAGE_NOTIFY_SOURCE}-${options.test ? "test" : "done"}-${digest}`;
+}
 
-	const command = process.env[IMESSAGE_COMMAND_ENV]?.trim() || "imsg";
+async function postToIMessageViaRelaymux(
+	text: string,
+	idempotencyKey: string,
+	replyMode: "imessage" | "none" = "imessage",
+): Promise<void> {
 	const { stderr, code } = await runQuiet(
-		command,
-		["send", "--to", recipient, "--text", truncate(text, MAX_IMESSAGE_CHARS)],
+		getRelaymuxCommand(),
+		[
+			"notify",
+			"--from",
+			IMESSAGE_NOTIFY_SOURCE,
+			"--reply-mode",
+			replyMode,
+			"--idempotency-key",
+			idempotencyKey,
+			"--message",
+			truncate(text, MAX_WEBHOOK_TEXT_CHARS),
+		],
 		{ timeout: 30_000 },
 	);
 	if (code !== 0) {
-		throw new Error(`iMessage notification failed: ${stderr.trim() || `exit code ${code}`}`);
+		throw new Error(`relaymux iMessage notification failed: ${stderr.trim() || `exit code ${code}`}`);
 	}
 }
 
-async function postConfiguredNotifications(text: string, settings: NotificationSettings): Promise<void> {
+async function postConfiguredNotifications(
+	text: string,
+	settings: NotificationSettings,
+	options: { imessageIdempotencyKey: string },
+): Promise<void> {
 	const enabledPosts = [
 		...(settings.slack ? [postToSlack(text)] : []),
-		...(settings.imessage ? [postToIMessage(text)] : []),
+		...(settings.imessage ? [postToIMessageViaRelaymux(text, options.imessageIdempotencyKey)] : []),
 	];
 	if (enabledPosts.length === 0) return;
 
@@ -519,7 +539,10 @@ export default function notificationsExtension(pi: ExtensionAPI) {
 
 		void (async () => {
 			try {
-				await postConfiguredNotifications(await buildMessage(pi, ctx), settings);
+				const message = await buildMessage(pi, ctx);
+				await postConfiguredNotifications(message, settings, {
+					imessageIdempotencyKey: buildIMessageNotifyIdempotencyKey(ctx, message, { startedAt }),
+				});
 			} catch (error) {
 				console.error(`[notifications] Delivery failed: ${compactError(error)}`);
 				if (ctx.hasUI) {
@@ -567,21 +590,18 @@ export default function notificationsExtension(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("imessage-notify-test", {
-		description: "Send a test iMessage notification using the same summary/PR/question format",
+		description: "Send a quiet test notification through relaymux notify",
 		handler: async (_args, ctx) => {
-			if (!(await getIMessageRecipient())) {
-				ctx.ui.notify(
-					`Set ${IMESSAGE_RECIPIENT_ENV} or ${IMESSAGE_RECIPIENT_FILE} before testing iMessage notifications`,
-					"error",
-				);
-				return;
-			}
-
 			try {
-				await postToIMessage(await buildMessage(pi, ctx, { test: true }));
-				ctx.ui.notify("Sent iMessage test notification", "info");
+				const message = await buildMessage(pi, ctx, { test: true });
+				await postToIMessageViaRelaymux(
+					message,
+					buildIMessageNotifyIdempotencyKey(ctx, message, { test: true }),
+					"none",
+				);
+				ctx.ui.notify("Sent quiet iMessage relaymux test notification", "info");
 			} catch (error) {
-				ctx.ui.notify(`iMessage notification failed: ${compactError(error)}`, "error");
+				ctx.ui.notify(`iMessage relaymux notification failed: ${compactError(error)}`, "error");
 			}
 		},
 	});

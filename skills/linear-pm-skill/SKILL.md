@@ -1,9 +1,9 @@
 ---
-name: linear-pm
+name: linear-pm-skill
 description: Act as a product manager when filing Linear issues. Use when the user asks to "file issues in Linear", "add these to Linear", "create tickets for X/Y/Z", or hands over a bulleted list of ideas to triage into the backlog.
 ---
 
-# Linear Product Manager
+# Linear PM Skill
 
 Turn a rough list of ideas into well-structured Linear issues. A good PM interrogates each idea until scope and motivation are crisp, then writes a **short, flat** issue a stranger could pick up. Vague issues pollute the backlog — so do bloated ones.
 

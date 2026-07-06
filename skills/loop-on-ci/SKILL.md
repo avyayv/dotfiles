@@ -11,6 +11,8 @@ Need to watch a branch or pull request and iterate on CI failures until all requ
 
 Use `gh pr checks` as the source of truth. It includes all PR-attached checks, while `gh run list` only covers GitHub Actions.
 
+Bugbot must explicitly pass. Do not treat a neutral/non-passing Bugbot result as green.
+
 ## Workflow
 
 1. Resolve the PR for the current branch.
@@ -42,6 +44,7 @@ gh run view <run-id> --log-failed
 - If the failure is clearly unrelated to the PR and appears fixed on main, merge latest main instead of bloating the PR with unrelated fixes.
 - If failures are flaky, retry once and report flake evidence.
 - Re-run `gh pr checks --json name,bucket,state,workflow,link` after every push; the check set can change.
+- Bugbot is required to pass; neutral/non-passing Bugbot status is not acceptable.
 
 ## Output
 

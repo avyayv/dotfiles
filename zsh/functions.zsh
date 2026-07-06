@@ -593,21 +593,6 @@ function _dari_restart_company_context_window() {
   tmux kill-window -t "$target" 2>/dev/null || true
 }
 
-function _dari_stop_personal_imessage_agent() {
-  local label="com.avyay.pi-personal-imessage-agent"
-  local domain="gui/$(id -u)"
-  local plist="$HOME/Library/LaunchAgents/$label.plist"
-
-  if ! command -v launchctl >/dev/null 2>&1; then
-    return 0
-  fi
-
-  if launchctl print "$domain/$label" >/dev/null 2>&1; then
-    echo "Stopping $label so iMessage replies only come from the orchestrator"
-    launchctl bootout "$domain/$label" >/dev/null 2>&1 || launchctl bootout "$domain" "$plist" >/dev/null 2>&1 || true
-  fi
-}
-
 function _dari_add_company_context_window() {
   local session_name="$1"
   local company_codex_session="$2"
@@ -629,48 +614,6 @@ function _dari_add_company_context_window() {
   _dari_start_company_context_command "$target" "$company_codex_session"
 }
 
-function _dari_start_orchestrator_window() {
-  local session_name="$1"
-  local agent_host_dir="$2"
-  local restart_orchestrator="$3"
-  local orchestrator_index=""
-  local target=""
-  local pi_agent_dir="$HOME/.pi/agent"
-  local orchestrator_root="$pi_agent_dir/orchestrator-imessage"
-  local imessage_agent_script="$HOME/.pi/agent-personal/imessage-agent/agent.mjs"
-  local agent_label="Dari orchestrator agent"
-  local extra_prompt="You are the Dari coding orchestrator. Use the orchestrator skill for requests about delegating coding work, opening tmux tabs, creating worktrees, or coordinating agents in /Users/avyay/code/dari/agent-host. Always use subagents if a task looks like it will need more than 3 tool calls, or if any tool call is likely to take more than 5 seconds. The main iMessage/orchestrator session should reply quickly, delegate, and avoid blocking. Keep iMessage replies concise and conversational."
-  local imessage_recipient="${PI_IMESSAGE_RECIPIENT:-}"
-  local recipient_file="$HOME/.pi/agent/secrets/imessage-recipient"
-  local run_cmd=""
-
-  orchestrator_index="$(tmux list-windows -t "$session_name" -F '#{window_index}\t#{window_name}' 2>/dev/null | awk -F '\t' '$2 == "orchestrator" { print $1; exit }')"
-  if [ -n "$orchestrator_index" ]; then
-    if [ "$restart_orchestrator" -eq 1 ]; then
-      tmux kill-window -t "$session_name:$orchestrator_index"
-    else
-      return 0
-    fi
-  fi
-
-  if [ ! -f "$imessage_agent_script" ]; then
-    echo "Missing iMessage agent script: $imessage_agent_script" >&2
-    return 1
-  fi
-
-  if [ -z "$imessage_recipient" ] && [ -r "$recipient_file" ]; then
-    imessage_recipient="$(tr -d '[:space:]' < "$recipient_file")"
-  fi
-  if [ -z "$imessage_recipient" ]; then
-    echo "Set PI_IMESSAGE_RECIPIENT or create $recipient_file" >&2
-    return 1
-  fi
-
-  target="$(tmux new-window -P -F '#{session_name}:#{window_index}' -t "$session_name:" -n "orchestrator" -c "$agent_host_dir")"
-  run_cmd="DARI_ORCHESTRATOR_TMUX_SESSION=${(q)session_name} PI_PERSONAL_AGENT_DIR=${(q)pi_agent_dir} PI_IMESSAGE_AGENT_ROOT=${(q)orchestrator_root} PI_IMESSAGE_AGENT_CWD=${(q)agent_host_dir} PI_IMESSAGE_CHAT_ID=1 PI_IMESSAGE_RECIPIENT=${(q)imessage_recipient} PI_IMESSAGE_SYNC_LIMIT=20 PI_IMESSAGE_AGENT_LABEL=${(q)agent_label} PI_IMESSAGE_SYSTEM_APPEND_EXTRA=${(q)extra_prompt} node ${(q)imessage_agent_script}"
-  tmux send-keys -t "$target" "$run_cmd" C-m
-}
-
 function _dari_attach_tmux_session() {
   local session_name="$1"
 
@@ -682,39 +625,30 @@ function _dari_attach_tmux_session() {
 }
 
 # Start or attach the persistent Dari tmux workspace.
-# Windows: Company Context (long-running Codex resume) + orchestrator (iMessage Pi agent).
+# iMessage/SMS is handled by the relaymux LaunchAgent, not a tmux-local agent.
 function dari_tmux() {
   local session_name="dari"
   local session_arg_set=0
-  local agent_host_dir="${DARI_AGENT_HOST_DIR:-$HOME/code/dari/agent-host}"
   local company_codex_session="${DARI_COMPANY_CODEX_SESSION_ID:-019e5b39-1f16-7e80-b643-a14e1768acda}"
-  local restart_orchestrator=0
-  local stop_imessage="${DARI_ORCHESTRATOR_STOP_PERSONAL_IMESSAGE:-1}"
   local existing_company=""
   local company_window_index=""
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --restart-orchestrator)
-        restart_orchestrator=1
-        ;;
-      --no-stop-imessage)
-        stop_imessage=0
-        ;;
       --help|-h)
-        echo "Usage: dari_tmux [session_name] [--restart-orchestrator] [--no-stop-imessage]"
-        echo "Creates/attaches a tmux session with Company Context and an iMessage orchestrator."
+        echo "Usage: dari_tmux [session_name]"
+        echo "Creates/attaches the Dari tmux session and ensures Company Context is running."
         return 0
         ;;
       --*)
         echo "Unknown option: $1" >&2
-        echo "Usage: dari_tmux [session_name] [--restart-orchestrator] [--no-stop-imessage]" >&2
+        echo "Usage: dari_tmux [session_name]" >&2
         return 1
         ;;
       *)
         if [ "$session_arg_set" -eq 1 ]; then
           echo "Unexpected argument: $1" >&2
-          echo "Usage: dari_tmux [session_name] [--restart-orchestrator] [--no-stop-imessage]" >&2
+          echo "Usage: dari_tmux [session_name]" >&2
           return 1
         fi
         session_name="$1"
@@ -729,15 +663,6 @@ function dari_tmux() {
     return 1
   fi
 
-  if [ ! -d "$agent_host_dir" ]; then
-    echo "agent-host directory does not exist: $agent_host_dir" >&2
-    return 1
-  fi
-
-  if [ "$stop_imessage" = "1" ]; then
-    _dari_stop_personal_imessage_agent
-  fi
-
   if tmux has-session -t "$session_name" 2>/dev/null; then
     company_window_index="$(tmux list-windows -t "$session_name" -F '#{window_index}\t#{window_name}' 2>/dev/null | awk -F '\t' '$2 == "Company Context" { print $1; exit }')"
     if [ -n "$company_window_index" ]; then
@@ -747,7 +672,6 @@ function dari_tmux() {
     else
       _dari_add_company_context_window "$session_name" "$company_codex_session"
     fi
-    _dari_start_orchestrator_window "$session_name" "$agent_host_dir" "$restart_orchestrator" || return $?
     _dari_attach_tmux_session "$session_name"
     return $?
   fi
@@ -764,7 +688,6 @@ function dari_tmux() {
     _dari_start_company_context_command "$session_name:0" "$company_codex_session"
   fi
 
-  _dari_start_orchestrator_window "$session_name" "$agent_host_dir" "$restart_orchestrator" || return $?
   tmux select-window -t "$session_name:0"
   _dari_attach_tmux_session "$session_name"
 }
