@@ -1,6 +1,6 @@
 # Personal Agent Instructions
 
-## Dumbass Projects
+## Throwaway Projects
 
 When Avyay asks for a quick throwaway game, meme app, clone-ish toy, or other "dumbass project," create it under `/Users/avyay/code/dumbass-projects` by default unless he gives another path.
 
@@ -31,7 +31,6 @@ Deployment pattern on the box (follow it for new apps):
 - Reverse proxy: Traefik v3 in Docker, listens on 80/443, auto Let's Encrypt TLS (`letsencrypt` cert resolver), config at `/home/avyay/traefik/` (`docker-compose.yml` + `traefik.yml`)
 - Every app is a Docker container on the shared `traefik-network`, deployed via docker-compose under `/home/avyay/<domain>/` with Traefik labels (`Host(...)` rule, entrypoints web/websecure, `tls.certresolver=letsencrypt`)
 - Existing apps: `avyayv.com` (main personal site, SvelteKit static build), `blog.avyayv.com`, `health.avyayv.com`, `tinder.vishvesha.com`, `person.vishvesha.com` (each is `/home/avyay/<domain>/`)
-- GitHub Pages retired: `avyayv.com` used to be on GH Pages (repo `avyayv/avyayv.github.io`); the deploy workflow is disabled (`.github/workflows/main.yml.disabled`) and DNS points at the Hetzner box now. Default deploy target is Hetzner.
 - DNS: all A records for `avyayv.com` + `www` point to `77.42.79.72`; Traefik provisions TLS certs automatically. After a rename of a subdomain add/repoint the A record (GoDaddy API token in api-keys env file), then `cd /home/avyay/traefik && docker compose restart traefik` if the cert doesn't self-issue within a few minutes.
 
 Deploy a static site: rsync files into `/home/avyay/<domain>/public/` (nginx serves that dir via a volume mount into the container), then `cd /home/avyay/<domain> && docker compose up -d --build` if the image or compose file changed.
