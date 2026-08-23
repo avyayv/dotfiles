@@ -1,7 +1,8 @@
 # Agent profiles
 
-- `work/` is used by bare `pi`, Claude Code, Codex, and `~/.agents`.
-- `personal/` is used only by `pi-personal`.
-- Both profile skill directories are composed from `skills/shared/` plus their matching `skills/work/` or `skills/personal/` directory.
+- The work `AGENTS.md` is the baseline used by bare `pi`, `pi-personal`, Claude Code, Codex, and `~/.agents`.
+- `pi-personal` additionally loads `personal/APPEND_SYSTEM.md`.
+- Work skills are `skills/shared/` plus `skills/work/`.
+- Personal skills are `skills/shared/` plus `skills/personal/`.
 
-The shell launchers live in `zsh/functions.zsh`.
+The Pi shell launchers live in `zsh/functions.zsh`.
