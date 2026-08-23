@@ -38,7 +38,7 @@ tmux8 myproject --vertical
 
 Creates or attaches the persistent Dari tmux workspace. It ensures a `Company Context` tab exists, preserves/moves an existing long-running Codex session when present, and verifies it is running `codex resume ... --yolo`; otherwise it restarts/resumes it with `--yolo`.
 
-The phone/iMessage entrypoint is managed separately by the relaymux LaunchAgent (`com.avyay.relaymux-imessage`), not by this tmux helper.
+The phone/iMessage entrypoint is managed separately by the Context Drop daemon (`context-drop daemon`), not by this tmux helper.
 
 ```bash
 dari_tmux

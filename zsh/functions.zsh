@@ -635,7 +635,7 @@ function _dari_attach_tmux_session() {
 }
 
 # Start or attach the persistent Dari tmux workspace.
-# iMessage/SMS is handled by the relaymux LaunchAgent, not a tmux-local agent.
+# iMessage/SMS is handled by the Context Drop daemon, not a tmux-local agent.
 function dari_tmux() {
   local session_name="dari"
   local session_arg_set=0
@@ -780,17 +780,3 @@ function _tmux_tabs() {
 for i in {2..8}; do
   eval "function tmux${i}() { _tmux_tabs $i \"\$@\"; }"
 done
-
-# Wrap `claude` so `--yolo` is an alias for `--dangerously-skip-permissions`
-function claude() {
-  local args=()
-  local a
-  for a in "$@"; do
-    if [ "$a" = "--yolo" ]; then
-      args+=("--dangerously-skip-permissions")
-    else
-      args+=("$a")
-    fi
-  done
-  command claude "${args[@]}"
-}

@@ -1,5 +1,13 @@
 # Global Agent Instructions
 
+## Tasks
+When a new task is created, it is absolutely imperative that you do the work in a new worktree. Do not edit the main branch directly EVER. Always do the following before starting work on a new task
+
+1. Pull latest version of main
+2. Create a worktree
+3. Switch to that worktree directory
+4. Start working
+
 ## Subagents
 
 When you need a subagent, open an agent within the same `herdr` workspace. You will be able to monitor it as you would any other way. But you should create another `herdr` agent in a new tab (name the tab accordingly) if you need a subagent.
