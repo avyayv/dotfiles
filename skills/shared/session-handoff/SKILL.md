@@ -113,4 +113,4 @@ If validation was not run, say that explicitly.
 - Do not include secrets, API keys, tokens, private credentials, or unnecessary personal data.
 - Do not dump large diffs or full logs unless the exact content is required; summarize and point to files/commands.
 - If there are uncommitted changes, mention that prominently in `Current state` and `Risks / gotchas`.
-- If this hands off delegated/relaymux work, include tmux tab names, worktree paths, branch names, PR URLs, and any schedule/status-check state that matters.
+- If this hands off delegated/Context Drop work, include tmux tab names, worktree paths, branch names, PR URLs, and any schedule/status-check state that matters.

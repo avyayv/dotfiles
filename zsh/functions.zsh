@@ -1,5 +1,15 @@
 # Custom ZSH Functions
 
+# Agent profiles. Bare `pi`, Claude Code, and Codex use the work profile.
+# `pi-personal` has separate instructions, skills, settings, auth, and sessions.
+function pi() {
+  PI_CODING_AGENT_DIR="$HOME/.pi/agent" command pi --no-skills --skill "$HOME/.pi/agent/skills" "$@"
+}
+
+function pi-personal() {
+  PI_CODING_AGENT_DIR="$HOME/.pi/agent-personal" command pi --no-skills --skill "$HOME/.pi/agent-personal/skills" "$@"
+}
+
 # Print the full browser URL for the Vite frontend exposed by a running
 # Docker Compose stack. Usage: frontend-url [folder] [service] [container_port]
 function frontend_url() {

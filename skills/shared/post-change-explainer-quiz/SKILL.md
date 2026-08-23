@@ -17,7 +17,7 @@ Read the relevant sources before writing the explainer:
 
 - Git diff against the intended base branch.
 - PR body, comments, and checks when a PR exists.
-- Implementation journal under `/Users/avyay/.relaymux/implementation-notes/` when present.
+- Implementation journal under `/Users/avyay/.context-drop/managed/state/implementation-notes/` when present.
 - Relevant tests, docs, migrations, API contracts, UI routes, scripts, or run artifacts.
 - Any validation output already produced by agents or CI.
 
@@ -59,7 +59,7 @@ Use a 1:1 tutoring tone: direct, concrete, and code-backed. Avoid long monologue
 If Avyay explicitly asks for a saved artifact, use this default report path:
 
 ```text
-/Users/avyay/.relaymux/reports/<repo>-post-change-explainer-<YYYYMMDD>-<short-task>.md
+/Users/avyay/.context-drop/managed/reports/<repo>-post-change-explainer-<YYYYMMDD>-<short-task>.md
 ```
 
 If Avyay asks for a browser artifact or phone-readable artifact, render or serve it and provide a tailnet URL according to global instructions.

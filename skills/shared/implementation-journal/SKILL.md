@@ -14,7 +14,7 @@ The journal is scratch coordination state. Keep it outside the repo by default s
 Default path:
 
 ```text
-/Users/avyay/.relaymux/state/implementation-notes/<repo>/<branch-or-task>.md
+/Users/avyay/.context-drop/managed/state/implementation-notes/<repo>/<branch-or-task>.md
 ```
 
 Derive `<repo>` from the git repo directory name when possible. Derive `<branch-or-task>` from the git branch, PR number, or a short task slug.

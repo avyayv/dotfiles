@@ -1,0 +1,51 @@
+{
+  "title": "Snowflake data-eng-bench \u00b7 Pi agent",
+  "subtitle": "Accuracy vs. model cost per task \u2014 every model runs on the same Pi agent harness, 103 tasks",
+  "eyebrow": "BENCHMARK",
+  "out": "dari-snowflake-data-eng.png",
+  "y_min": 48,
+  "y_max": 70,
+  "y_step": 4,
+  "x_max": 1.5,
+  "x_step": 0.25,
+  "frontier": true,
+  "effort_style": "paren",
+  "points": [
+    {
+      "name": "Dari Router",
+      "accuracy": 67.96,
+      "cost": 0.9115,
+      "label": "68.0% at $0.91",
+      "highlight": true
+    },
+    {
+      "name": "GPT-5.6-sol",
+      "accuracy": 65.05,
+      "cost": 1.2048,
+      "label": "65.0% at $1.20",
+      "effort": "xhigh"
+    },
+    {
+      "name": "GPT-5.6-luna",
+      "accuracy": 61.17,
+      "cost": 0.099,
+      "label": "61.2% at $0.10",
+      "effort": "xhigh"
+    },
+    {
+      "name": "DeepSeek V4 Flash",
+      "accuracy": 57.28,
+      "cost": 0.1261,
+      "label": "57.3% at $0.13",
+      "effort": "xhigh"
+    },
+    {
+      "name": "DeepSeek V4 Flash",
+      "accuracy": 50.49,
+      "cost": 0.0709,
+      "label": "50.5% at $0.07",
+      "effort": "low"
+    }
+  ],
+  "x_title": "COST PER TASK"
+}
