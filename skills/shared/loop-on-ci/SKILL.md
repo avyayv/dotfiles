@@ -20,6 +20,7 @@ Bugbot must explicitly pass. Do not treat a neutral/non-passing Bugbot result as
 3. If checks already failed, diagnose those failures first.
 4. If checks are pending, watch with `gh pr checks --watch --fail-fast`.
 5. After each push, re-check the full PR check set and repeat until green.
+6. Ensure that Bugbot is PASS and not NEUTRAL. If it is NEUTRAL, you need to check comments and resolve them.
 
 ## Commands
 
@@ -44,7 +45,6 @@ gh run view <run-id> --log-failed
 - If the failure is clearly unrelated to the PR and appears fixed on main, merge latest main instead of bloating the PR with unrelated fixes.
 - If failures are flaky, retry once and report flake evidence.
 - Re-run `gh pr checks --json name,bucket,state,workflow,link` after every push; the check set can change.
-- Bugbot is required to pass; neutral/non-passing Bugbot status is not acceptable.
 
 ## Output
 
