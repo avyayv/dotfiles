@@ -48,12 +48,11 @@ alias feurl='frontend_url'
 # Use Neovim when typing `vim`.
 alias vim='nvim'
 
-# Helper: create a new worktree from current HEAD or track remote branch
+# Helper: create a new worktree from current HEAD or track remote branch, and enter it.
+# `tunnel new` does the work (and links .env*/node_modules); see `tunnel --help`.
 function _gwt_create() {
-  local branch_input="$1"
+  local new_branch="$1"
   local start_ref="${2:-HEAD}"
-  local new_branch="$branch_input"
-  local remote_ref=""
 
   if [ -z "$new_branch" ]; then
     echo -n "Branch name: "
@@ -65,60 +64,9 @@ function _gwt_create() {
     return 1
   fi
 
-  if git show-ref --verify --quiet "refs/remotes/$branch_input"; then
-    remote_ref="$branch_input"
-    new_branch="${branch_input#*/}"
-  fi
-
-  local wt_name="${new_branch//\//-}"
-  local wt_path="$HOME/.avyay-worktrees/$wt_name"
-  local source_dir="$(git rev-parse --show-toplevel)"
-  mkdir -p "$HOME/.avyay-worktrees"
-
-  # Fetch latest remote refs
-  git fetch --prune --quiet
-
-  # Check if branch exists locally
-  local local_branch="$(git for-each-ref --format='%(refname:short)' refs/heads/"$new_branch" 2>/dev/null)"
-  # Check if branch exists on remote
-  if [ -z "$remote_ref" ]; then
-    remote_ref="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/"$new_branch" 2>/dev/null)"
-  fi
-
-  local wt_created=0
-  if [ -n "$local_branch" ]; then
-    # Branch exists locally - use it
-    echo "Using existing local branch: $local_branch"
-    git worktree add "$wt_path" "$new_branch" && wt_created=1
-  elif [ -n "$remote_ref" ]; then
-    # Branch exists on remote - track it
-    echo "Tracking remote branch: $remote_ref"
-    git worktree add --track -b "$new_branch" "$wt_path" "$remote_ref" && wt_created=1
-  else
-    # Create new branch from the requested start point (defaults to current HEAD)
-    git worktree add -b "$new_branch" "$wt_path" "$start_ref" && wt_created=1
-  fi
-
-  if [ "$wt_created" -eq 1 ]; then
-    while IFS= read -r env_file; do
-      local rel_path="${env_file#$source_dir/}"
-      local target_dir="$wt_path/$(dirname "$rel_path")"
-      mkdir -p "$target_dir"
-      ln -s "$env_file" "$wt_path/$rel_path" && echo "Symlinked $rel_path"
-    done < <(find "$source_dir" -name ".env*" -type f 2>/dev/null)
-
-    # Symlink every node_modules tree from the source worktree so LSPs resolve
-    # types immediately. -prune stops find from descending into nested node_modules.
-    while IFS= read -r nm_dir; do
-      local rel_path="${nm_dir#$source_dir/}"
-      local target_path="$wt_path/$rel_path"
-      [ -e "$target_path" ] && continue
-      mkdir -p "$(dirname "$target_path")"
-      ln -s "$nm_dir" "$target_path" && echo "Symlinked $rel_path"
-    done < <(find "$source_dir" -name "node_modules" -type d -prune 2>/dev/null)
-
-    cd "$wt_path"
-  fi
+  local wt_path
+  wt_path="$(tunnel new "$new_branch" --from "$start_ref")" || return 1
+  cd "$wt_path"
 }
 
 function _gwt_worktree_path_for_branch() {
@@ -284,63 +232,18 @@ function _gwt_pick_branch() {
   printf '%s\n' "${selected#*$'\t'}"
 }
 
-# Delete current worktree and return to main repo
+# Delete current worktree (with its previews, Compose stacks, volumes and images) and return to
+# the main repo. Refuses uncommitted or untracked work.
 # Usage: gwtd (run from within a worktree)
 function gwtd() {
-  local current_dir="$(pwd)"
-  local wt_root="$(git rev-parse --show-toplevel)"
-  local main_worktree="$(git worktree list --porcelain | head -1 | cut -d' ' -f2)"
-
-  # Check if we're in a worktree (not the main one)
-  if [ "$current_dir" = "$main_worktree" ] || [[ "$current_dir" != *"/.avyay-worktrees/"* ]]; then
-    echo "Not in a .avyay-worktrees worktree"
-    return 1
-  fi
-
-  # Safety check: ensure wt_root is within .avyay-worktrees
-  if [[ -z "$wt_root" ]] || [[ "$wt_root" != *"/.avyay-worktrees/"* ]]; then
-    echo "Safety check failed: worktree root '$wt_root' is not in .avyay-worktrees"
-    return 1
-  fi
-
-  # Check for uncommitted changes
-  if ! git diff --quiet HEAD 2>/dev/null; then
-    echo "Worktree has uncommitted changes. Use 'gwtd!' to force delete."
-    return 1
-  fi
-
-  # Change to main worktree first, then remove
-  cd "$main_worktree" || return 1
-  git worktree remove "$wt_root" 2>/dev/null || {
-    # If remove fails, prune stale entries and delete directory manually
-    git worktree prune
-    rm -rf "$wt_root"
-  }
-  echo "Removed worktree and returned to $main_worktree"
+  local main_worktree
+  main_worktree="$(tunnel rm "$@")" || return 1
+  cd "$main_worktree"
 }
 
 # Force delete worktree (even with uncommitted changes)
 function gwtd!() {
-  local current_dir="$(pwd)"
-  local wt_root="$(git rev-parse --show-toplevel)"
-  local main_worktree="$(git worktree list --porcelain | head -1 | cut -d' ' -f2)"
-
-  if [ "$current_dir" = "$main_worktree" ] || [[ "$current_dir" != *"/.avyay-worktrees/"* ]]; then
-    echo "Not in a .avyay-worktrees worktree"
-    return 1
-  fi
-
-  if [[ -z "$wt_root" ]] || [[ "$wt_root" != *"/.avyay-worktrees/"* ]]; then
-    echo "Safety check failed: worktree root '$wt_root' is not in .avyay-worktrees"
-    return 1
-  fi
-
-  cd "$main_worktree" || return 1
-  git worktree remove --force "$wt_root" 2>/dev/null || {
-    git worktree prune
-    rm -rf "$wt_root"
-  }
-  echo "Removed worktree and returned to $main_worktree"
+  gwtd --force
 }
 
 # Jump to base (main) worktree
